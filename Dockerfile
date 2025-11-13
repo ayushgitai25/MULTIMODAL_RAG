@@ -18,7 +18,6 @@ RUN apt-get update && apt-get install -y \
 
 COPY requirements.txt .
 
-# Hard-pin transformers first, then the rest
 RUN pip install --no-cache-dir --upgrade pip && \
     pip uninstall -y transformers tokenizers || true && \
     pip install --no-cache-dir transformers==4.46.1 tokenizers==0.20.0 && \
@@ -29,6 +28,14 @@ COPY . .
 RUN chown -R app:app /app /home/app
 USER app
 
-EXPOSE 8000 8501
+# Only expose the port HF will use
+EXPOSE 7860
 
-CMD ["bash", "-c", "uvicorn app:app --host 0.0.0.0 --port 8000 --log-level info & streamlit run frontend_app.py --server.port=8501 --server.address=0.0.0.0 --server.headless=true --server.enableCORS=false --browser.gatherUsageStats=false"]
+CMD ["bash", "-c", \
+     "uvicorn app:app --host 0.0.0.0 --port 8000 --log-level info & \
+      streamlit run frontend_app.py \
+        --server.port=7860 \
+        --server.address=0.0.0.0 \
+        --server.headless=true \
+        --server.enableCORS=false \
+        --browser.gatherUsageStats=false"]
