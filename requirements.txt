@@ -1,14 +1,17 @@
+--upgrade pip
+setuptools>=65.5.0
+wheel
+transformers==4.46.1
+huggingface-hub==0.24.6
+streamlit
 fastapi
 uvicorn
-streamlit
 langchain
 langchain-core
 langchain-community
 langchain-google-genai
 pymupdf
 pillow
-transformers==4.46.1
-huggingface-hub>=0.24.0
 scikit-learn
 faiss-cpu
 python-dotenv
