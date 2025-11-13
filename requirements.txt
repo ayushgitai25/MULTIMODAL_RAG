@@ -1,6 +1,8 @@
---upgrade pip
 transformers==4.46.1
-huggingface-hub==0.24.6
+huggingface-hub>=0.24.0
+torch
+torchvision
+torchaudio
 streamlit
 fastapi
 uvicorn
@@ -14,8 +16,4 @@ scikit-learn
 faiss-cpu
 python-dotenv
 python-multipart
-torch
-torchvision
-torchaudio
 librosa
-
