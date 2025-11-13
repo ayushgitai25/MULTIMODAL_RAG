@@ -23,7 +23,7 @@ elif mode == "Image":
 elif mode == "Audio":
     uploaded_file = st.file_uploader("🎵 Upload Audio (WAV/MP3)", type=["wav", "mp3"])
 
-API_BASE_URL = "http://127.0.0.1:8000"
+API_BASE_URL = "http://localhost:8000"
 
 if uploaded_file:
     with st.spinner(f"Uploading {uploaded_file.name}..."):
@@ -114,3 +114,4 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
+
