@@ -1,6 +1,4 @@
 --upgrade pip
-setuptools>=65.5.0
-wheel
 transformers==4.46.1
 huggingface-hub==0.24.6
 streamlit
@@ -20,3 +18,4 @@ torch
 torchvision
 torchaudio
 librosa
+
