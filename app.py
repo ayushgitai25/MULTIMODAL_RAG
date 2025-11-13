@@ -23,6 +23,8 @@ elif mode == "Image":
 elif mode == "Audio":
     uploaded_file = st.file_uploader("🎵 Upload Audio (WAV/MP3)", type=["wav", "mp3"])
 
+API_BASE_URL = "http://127.0.0.1:8000"
+
 if uploaded_file:
     with st.spinner(f"Uploading {uploaded_file.name}..."):
         files = {"file": (uploaded_file.name, uploaded_file.getvalue())}
@@ -31,7 +33,7 @@ if uploaded_file:
             "Image": "upload_image",
             "Audio": "upload_audio"
         }
-        resp = requests.post(f"http://localhost:8000/{endpoint_dict[mode]}", files=files)
+        resp = requests.post(f"{API_BASE_URL}/{endpoint_dict[mode]}", files=files)
         if resp.ok:
             st.success(f"✅ {uploaded_file.name} processed successfully!")
         else:
@@ -41,7 +43,7 @@ query = st.text_input("Enter your query:")
 
 if st.button("Ask") and query:
     with st.spinner("Generating answer..."):
-        response = requests.post("http://localhost:8000/query", json={"query": query, "mode": mode.lower()})
+        response = requests.post(f"{API_BASE_URL}/query", json={"query": query, "mode": mode.lower()})
         result = response.json()
     
     # Styled answer box with emoji and background
