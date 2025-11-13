@@ -7,9 +7,6 @@ Multimodal FastAPI Application for RAG with PDF, Image, and Audio Support.
 - Uses LangChain Embeddings objects for forward compatibility
 - Processes queries routed to relevant vector store
 """
-import subprocess, sys
-subprocess.run([sys.executable, "-m", "pip", "install", "-U", "transformers==4.46.1", "huggingface-hub>=0.24.0"], check=True)
-
 import io, base64, os
 from PIL import Image
 import logging
@@ -19,7 +16,6 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from langchain_core.documents import Document
 from langchain_community.vectorstores import FAISS
-import fix_transformers
 from transformers import pipeline
 from langchain.embeddings.base import Embeddings
 
@@ -250,5 +246,6 @@ async def query(request: QueryRequest):
     answer = query_llm(llm, content)
     logger.info(f"Generated answer: {answer}")
     return {"answer": answer}
+
 
 
