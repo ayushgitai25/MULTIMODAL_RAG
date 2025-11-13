@@ -24,5 +24,6 @@ EXPOSE 8000 8501
 # Run uvicorn and streamlit concurrently:
 # uvicorn runs FastAPI backend on port 8000,
 # streamlit runs frontend on port 8501
-ENTRYPOINT /bin/sh -c "uvicorn fastapi_app:app --host 0.0.0.0 --port 8000 & streamlit run app.py --server.port 8501 --server.address 0.0.0.0 & wait"
+ENTRYPOINT /bin/sh -c "uvicorn app:app --host 0.0.0.0 --port 8000 & streamlit run frontend_app.py --server.port 8501 --server.address 0.0.0.0 & wait"
+
 
