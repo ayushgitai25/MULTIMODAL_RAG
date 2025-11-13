@@ -19,6 +19,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from langchain_core.documents import Document
 from langchain_community.vectorstores import FAISS
+import fix_transformers
 from transformers import pipeline
 from langchain.embeddings.base import Embeddings
 
@@ -249,4 +250,5 @@ async def query(request: QueryRequest):
     answer = query_llm(llm, content)
     logger.info(f"Generated answer: {answer}")
     return {"answer": answer}
+
 
