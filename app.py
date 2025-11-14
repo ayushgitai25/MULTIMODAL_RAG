@@ -1,11 +1,11 @@
 """
 Multimodal FastAPI Application for RAG with PDF, Image, and Audio Support.
+Serves on internal port 8000, proxied via Nginx to /api/* in HF Spaces.
 
-- Handles file uploads (PDF, image, audio)
+- Handles file uploads (PDF, image, audio) via /api/upload_*
 - Indexes into separate FAISS vector stores per modality
-- Cleans up embeddings on every new upload to prevent stale results
-- Uses LangChain Embeddings objects for forward compatibility
-- Processes queries routed to relevant vector store
+- Cleans up embeddings on every new upload
+- CORS enabled for Nginx proxy
 """
 
 import io, base64, os
@@ -14,13 +14,25 @@ import logging
 import numpy as np
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware  # Add CORS
 from pydantic import BaseModel
 from langchain_core.documents import Document
 from langchain_community.vectorstores import FAISS
 from langchain.embeddings.base import Embeddings
 
-# --------- Initialization --------- #
+# --------- CORS Middleware --------- #
+# Allow requests from Streamlit frontend via Nginx proxy
+app = FastAPI(title="Multimodal RAG API")
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins for HF Spaces proxy
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# --------- Initialization --------- #
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -28,11 +40,9 @@ try:
     from transformers import pipeline
     logger.info("Using 'from transformers import pipeline'")
 except ImportError:
-    # fallback if top-level export is broken for some reason
     from transformers.pipelines import pipeline
     logger.info("Using fallback: 'from transformers.pipelines import pipeline'")
 
-app = FastAPI()
 os.makedirs("data", exist_ok=True)
 
 # Speech-to-text pipeline for transcribing audio files
@@ -44,10 +54,9 @@ from utils.llm_handler import get_llm, query_llm
 from config import GOOGLE_API_KEY
 
 llm = get_llm()        # Gemini API LLM
-image_data_store = {}         # Data store for image base64 blobs
+image_data_store = {}  # Data store for image base64 blobs
 
 # --------- Embedding Wrappers --------- #
-
 class TextEmbeddings(Embeddings):
     """Wraps text embedding functions for compatibility with LangChain FAISS."""
     def embed_documents(self, texts):
@@ -66,7 +75,6 @@ text_embeddings_obj = TextEmbeddings()
 audio_embeddings_obj = AudioEmbeddings()
 
 # --------- Vector Store Initialization --------- #
-
 pdf_vector_store = FAISS.from_embeddings(
     text_embeddings=[("", np.zeros(512))],
     embedding=text_embeddings_obj,
@@ -88,13 +96,12 @@ audio_query_vector_store = FAISS.from_embeddings(
     metadatas=[{"type": "dummy"}]
 )
 
-# --------- API Endpoints --------- #
-
+# --------- API Endpoints (Prefixed for Nginx /api/*) --------- #
 @app.post("/upload_pdf")
 async def upload_pdf(file: UploadFile = File(...)):
     """
     Upload a PDF and index its content in the PDF vector store.
-    Old embeddings are wiped for each new upload.
+    Accessed via Nginx proxy at /api/upload_pdf
     """
     global pdf_vector_store
     pdf_vector_store = FAISS.from_embeddings(
@@ -127,7 +134,7 @@ async def upload_pdf(file: UploadFile = File(...)):
 async def upload_image(file: UploadFile = File(...)):
     """
     Upload an image and index its content in the image vector store.
-    Old embeddings and image data are wiped on new upload.
+    Accessed via Nginx proxy at /api/upload_image
     """
     global image_vector_store, image_data_store
     image_vector_store = FAISS.from_embeddings(
@@ -168,8 +175,7 @@ async def upload_image(file: UploadFile = File(...)):
 async def upload_audio(file: UploadFile = File(...)):
     """
     Upload an audio file, index embeddings in index/query vector stores.
-    Old embeddings are wiped on each new upload.
-    Stores both Wav2Vec2 and CLIP (from transcription) embeddings.
+    Accessed via Nginx proxy at /api/upload_audio
     """
     global audio_index_vector_store, audio_query_vector_store
     audio_index_vector_store = FAISS.from_embeddings(
@@ -219,9 +225,7 @@ async def upload_audio(file: UploadFile = File(...)):
         return JSONResponse(status_code=500, content={"status": "error", "message": str(e)})
 
 class QueryRequest(BaseModel):
-    """
-    Defines the query request schema for /query endpoint.
-    """
+    """Defines the query request schema for /query endpoint."""
     query: str
     mode: str  # One of: 'pdf', 'image', 'audio'
 
@@ -229,7 +233,7 @@ class QueryRequest(BaseModel):
 async def query(request: QueryRequest):
     """
     Handles search queries for all modalities.
-    Routes query and search based on mode (pdf/image/audio).
+    Accessed via Nginx proxy at /api/query
     """
     logger.info(f"Received query: {request.query} for mode: {request.mode}")
 
@@ -254,3 +258,8 @@ async def query(request: QueryRequest):
     answer = query_llm(llm, content)
     logger.info(f"Generated answer: {answer}")
     return {"answer": answer}
+
+@app.get("/health")
+async def health():
+    """Health check endpoint for monitoring."""
+    return {"status": "healthy", "service": "multimodal-rag-api"}
