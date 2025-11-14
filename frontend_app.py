@@ -1,26 +1,10 @@
 import streamlit as st
 import requests
-import threading
-import uvicorn
-from concurrent.futures import ThreadPoolExecutor
-from app import app as fastapi_app  # Import FastAPI app instance
+import os
 
 st.set_page_config(page_title="🎨 Multimodal RAG", page_icon="🤖", layout="centered")
 
-# Start FastAPI server in background thread on first run
-def run_fastapi():
-    try:
-        uvicorn.run(fastapi_app, host="127.0.0.1", port=8000, log_level="info", access_log=False)
-    except Exception as e:
-        st.error(f"Failed to start FastAPI: {e}")
-
-if "fastapi_started" not in st.session_state:
-    executor = ThreadPoolExecutor(max_workers=1)
-    future = executor.submit(run_fastapi)
-    st.session_state.fastapi_started = True
-    st.session_state.fastapi_future = future
-    logger = st.empty()  # Placeholder for potential logs
-
+# Title with emoticon and color
 st.markdown('<h1 style="color:#6A5ACD; font-weight:bold;">🤖 Multimodal RAG with Gemini</h1>', unsafe_allow_html=True)
 
 # Radio buttons for mode selection
@@ -40,97 +24,77 @@ elif mode == "Image":
 elif mode == "Audio":
     uploaded_file = st.file_uploader("🎵 Upload Audio (WAV/MP3)", type=["wav", "mp3"])
 
-API_BASE_URL = "http://127.0.0.1:8000"  # Internal calls to FastAPI
+# Use RELATIVE URLs for Nginx proxy - NO localhost:8000
+API_BASE_URL = "/api"  # Nginx proxies /api/* to FastAPI on port 8000
 
 if uploaded_file:
     with st.spinner(f"Uploading {uploaded_file.name}..."):
-        files = {"file": (uploaded_file.name, uploaded_file.getvalue())}
+        files = {"file": (uploaded_file.name, uploaded_file.getvalue(), uploaded_file.type)}
         endpoint_dict = {
             "PDF": "upload_pdf",
             "Image": "upload_image",
             "Audio": "upload_audio"
         }
         try:
+            # Use relative URL - Nginx handles proxying to FastAPI
             resp = requests.post(f"{API_BASE_URL}/{endpoint_dict[mode]}", files=files, timeout=60)
             if resp.ok:
-                st.success(f"✅ {uploaded_file.name} processed successfully!")
+                result = resp.json()
+                if result.get("status") == "success":
+                    st.success(f"✅ {uploaded_file.name} processed successfully!")
+                else:
+                    st.error(f"❌ Processing failed: {result.get('message', 'Unknown error')}")
             else:
-                st.error(f"❌ Failed to process {uploaded_file.name}: {resp.text}")
+                st.error(f"❌ API Error {resp.status_code}: {resp.text}")
         except requests.exceptions.RequestException as e:
-            st.error(f"❌ API connection error: {e}. Ensure FastAPI is running.")
+            st.error(f"❌ Request failed: {e}")
+            # Fallback error for proxy issues
+            if "403" in str(e):
+                st.info("💡 If you see 403 errors, ensure Nginx proxy is configured correctly.")
 
 query = st.text_input("Enter your query:")
 
 if st.button("Ask") and query:
     with st.spinner("Generating answer..."):
         try:
-            response = requests.post(f"{API_BASE_URL}/query", json={"query": query, "mode": mode.lower()}, timeout=120)
+            # Relative URL for query endpoint
+            response = requests.post(
+                f"{API_BASE_URL}/query", 
+                json={"query": query, "mode": mode.lower()}, 
+                timeout=120
+            )
             result = response.json()
+            # Styled answer box
+            st.markdown(
+                f'''
+                <div style="
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: white;
+                    padding: 20px;
+                    border-radius: 15px;
+                    font-size: 18px;
+                    box-shadow: 3px 3px 10px rgba(0,0,0,0.2);
+                ">
+                    <h3 style="margin-top:0;">💡 Answer</h3>
+                    <p>{result.get("answer", "No answer found.")}</p>
+                </div>
+                ''',
+                unsafe_allow_html=True
+            )
         except requests.exceptions.RequestException as e:
             st.error(f"❌ Query failed: {e}")
-            result = {"answer": "Error connecting to backend."}
-    
-    # Styled answer box with emoji and background
-    st.markdown(
-        f'''
-        <div style="
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 20px;
-            border-radius: 15px;
-            font-size: 18px;
-            box-shadow: 3px 3px 10px rgba(0,0,0,0.2);
-            margin-bottom: 15px;
-        ">
-            <h3 style="margin-top:0;">💡 Answer</h3>
-            <p>{result.get("answer", "No answer found.")}</p>
-        </div>
-        ''',
-        unsafe_allow_html=True
-    )
+            if "403" in str(e):
+                st.info("🔧 403 errors often mean proxy misconfiguration. Check Nginx logs.")
 
-    # Context section with separate styling and emoji
-    context = result.get("context", None)
-    if context:
-        st.markdown(
-            f'''
-            <div style="
-                background-color: #FFEFB0;
-                padding: 15px;
-                border-radius: 10px;
-                border-left: 6px solid #FFCB05;
-                font-size: 16px;
-                max-height: 300px;
-                overflow-y: auto;
-            ">
-                <h4>📚 Retrieved Context:</h4>
-            </div>
-            ''',
-            unsafe_allow_html=True
-        )
-        # Display individual context entries in collapsible boxes
-        for idx, ctx in enumerate(context if isinstance(context, list) else [context]):
-            with st.expander(f"Context snippet {idx+1}"):
-                if isinstance(ctx, dict) and 'text' in ctx:
-                    st.write(ctx['text'])
-                else:
-                    st.write(ctx)
 else:
     st.info("Please upload a file and enter a query to get started.")
 
+# Footer
 st.markdown(
     """
     <div style="
-        position: fixed;
-        bottom: 10px;
-        width: 100%;
-        text-align: left;
-        font-size: 14px;
-        color: #666666;
-        font-style: normal;
-        font-weight: normal;
-        user-select: none;
-        z-index: 1000;
+        position: fixed; bottom: 10px; width: 100%; text-align: left; font-size: 14px;
+        color: #666666; font-style: normal; font-weight: normal; user-select: none; z-index: 1000;
     ">
         Powered by 🔥 <span style='color:#4A90E2;'>CLIP</span> | <span style='color:#F39C12;'>Wav2Vec2</span> | 
         <span style='color:#8E44AD;'>LangChain</span> | <span style='color:#E74C3C;'>Gemini 2.5 Flash</span>
