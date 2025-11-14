@@ -17,3 +17,4 @@ faiss-cpu
 python-dotenv
 python-multipart
 librosa
+pydub
