@@ -14,43 +14,43 @@ THING TO CHECK BEFORE DEPLOYING:
 ## Add this line in command so streamlit/UI can allow upload media: --server.enableXsrfProtection=false
 ## COMMAND is like: 
             CMD ["bash", "-c", "uvicorn app:app --host 0.0.0.0 --port 8000 --log-level info & streamlit run frontend_app.py --server.port=7860 --server.address=0.0.0.0 --server.headless=true --browser.gatherUsageStats=false --server.enableXsrfProtection=false"]
+
+## In our project: Why is non root user used: Mainly for AUDIO processing ffmpeg.
+In your HF Spaces deployment, the non-root user (user with UID 1000) ensures runtime isolation while allowing root for installs (e.g., pip, FFmpeg). This setup installs dependencies system-wide for PATH reliability, then switches users for CMD to balance security and functionality—essential for production apps handling uploads and embeddings.
+
+
 ## Dockerfile:
 FROM python:3.10-slim
 
-# Install bash, FFmpeg, and essentials (for HF Spaces compatibility and audio processing)
+# Install system dependencies as root
 RUN apt-get update && apt-get install -y \
     bash \
     curl \
     procps \
     ffmpeg \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && chown -R 1000:1000 /usr/bin/ffmpeg /usr/bin/ffprobe
+
+# Install Python dependencies as root (executables go to /usr/local/bin)
+COPY --chown=root:root requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Create non-root user (HF default UID 1000)
 RUN useradd -m -u 1000 user
-USER user
-ENV HOME=/home/user \
-    PATH=/home/user/.local/bin:$PATH
 
-# Set working directory
-WORKDIR $HOME/app
-
-# Copy requirements and install dependencies as user
-COPY --chown=user:user requirements.txt .
-RUN pip install --no-cache-dir --user -r requirements.txt
-
-# Copy application files with ownership
+# Set working directory and copy files with user ownership
+WORKDIR /home/user/app
 COPY --chown=user:user . .
+RUN mkdir -p data && chown -R user:user data && chmod 755 data
 
-# Create data directory with permissions
-RUN mkdir -p data && chmod 755 data
+# Switch to non-root user for runtime
+USER user
 
 EXPOSE 7860 8000
 
-# Run as JSON array (exec form) - no shell parsing issues
+# Run as JSON array (exec form) - binaries now in PATH
 CMD ["bash", "-c", "uvicorn app:app --host 0.0.0.0 --port 8000 --log-level info & streamlit run frontend_app.py --server.port=7860 --server.address=0.0.0.0 --server.headless=true --browser.gatherUsageStats=false --server.enableXsrfProtection=false"]
 
-## In our project: What is non root user used:
-In your HF Spaces deployment, the non-root user (user with UID 1000) ensures runtime isolation while allowing root for installs (e.g., pip, FFmpeg). This setup installs dependencies system-wide for PATH reliability, then switches users for CMD to balance security and functionality—essential for production apps handling uploads and embeddings.
 
 ===========================
 AI Document Summarizer - Hugging Face Spaces Deployment Guide
