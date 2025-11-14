@@ -1,20 +1,27 @@
 FROM python:3.10-slim
 
+# Create non-root user (HF default UID 1000)
+RUN useradd -m -u 1000 user
+USER user
+ENV HOME=/home/user \
+    PATH=/home/user/.local/bin:$PATH
+
 # Set working directory
-WORKDIR /app
+WORKDIR $HOME/app
 
-# Copy requirements and install dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Copy requirements and install dependencies as user
+COPY --chown=user requirements.txt .
+RUN pip install --no-cache-dir --user -r requirements.txt
 
-# Copy application files (assume utils, config are in place)
-COPY . .
+# Copy application files with ownership
+COPY --chown=user . .
 
-# Create data directory
-RUN mkdir -p data
+# Create data directory with permissions
+RUN mkdir -p data && chmod 755 data
 
-# Expose ports: 7860 for Streamlit (HF default), 8000 for internal FastAPI
 EXPOSE 7860 8000
 
-# Run backend with uvicorn in background, then frontend
-CMD ["bash", "-c", "uvicorn app:app --host 0.0.0.0 --port 8000 --log-level info & streamlit run frontend_app.py --server.port=7860 --server.address=0.0.0.0 --server.headless=true --browser.gatherUsageStats=false"]
+# Run backend in background, frontend with XSRF disabled
+CMD ["bash", "-c", \
+     "uvicorn app:app --host 0.0.0.0 --port 8000 --log-level info & " \
+     "streamlit run frontend_app.py --server.port=7860 --server.address=0.0.0.0 --server.headless=true --browser.gatherUsageStats=false --server.enableXsrfProtection=false"]
