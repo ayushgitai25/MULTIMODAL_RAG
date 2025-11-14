@@ -1,37 +1,27 @@
-"""
-Multimodal FastAPI Application for RAG with PDF, Image, and Audio Support.
-
-- Handles file uploads (PDF, image, audio)
-- Indexes into separate FAISS vector stores per modality
-- Cleans up embeddings on every new upload to prevent stale results
-- Uses LangChain Embeddings objects for forward compatibility
-- Processes queries routed to relevant vector store
-"""
-
 import io, base64, os
 from PIL import Image
 import logging
 import numpy as np
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.responses import JSONResponse
-from fastapi.middleware.cors import CORSMiddleware  # Add this import
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from langchain_core.documents import Document
 from langchain_community.vectorstores import FAISS
 from transformers import pipeline
 from langchain.embeddings.base import Embeddings
 
-# --------- Initialization --------- #
+from pydub import AudioSegment  # For m4a to wav conversion
+import shutil
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
-# ✅ Add CORS middleware with proper settings
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify your domains
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -39,28 +29,22 @@ app.add_middleware(
 
 os.makedirs("data", exist_ok=True)
 
-# Speech-to-text pipeline for transcribing audio files
 transcriber = pipeline("automatic-speech-recognition", model="facebook/wav2vec2-base-960h")
 
-# Import custom embedding logic from your utils (edit path/modules as needed)
 from utils.processor import process_pdf, embed_text, create_multimodal_message, embed_image, embed_audio
 from utils.llm_handler import get_llm, query_llm
 from config import GOOGLE_API_KEY
 
-llm = get_llm()        # Gemini API LLM
-image_data_store = {}         # Data store for image base64 blobs
-
-# --------- Embedding Wrappers --------- #
+llm = get_llm()
+image_data_store = {}
 
 class TextEmbeddings(Embeddings):
-    """Wraps text embedding functions for compatibility with LangChain FAISS."""
     def embed_documents(self, texts):
         return [embed_text(t) for t in texts]
     def embed_query(self, text):
         return embed_text(text)
 
 class AudioEmbeddings(Embeddings):
-    """Wraps audio embedding functions for compatibility with LangChain FAISS."""
     def embed_documents(self, audio_paths):
         return [embed_audio(f) for f in audio_paths]
     def embed_query(self, audio_path):
@@ -68,8 +52,6 @@ class AudioEmbeddings(Embeddings):
 
 text_embeddings_obj = TextEmbeddings()
 audio_embeddings_obj = AudioEmbeddings()
-
-# --------- Vector Store Initialization --------- #
 
 pdf_vector_store = FAISS.from_embeddings(
     text_embeddings=[("", np.zeros(512))],
@@ -92,20 +74,19 @@ audio_query_vector_store = FAISS.from_embeddings(
     metadatas=[{"type": "dummy"}]
 )
 
-# --------- API Endpoints --------- #
+def convert_m4a_to_wav(m4a_path, wav_path):
+    audio = AudioSegment.from_file(m4a_path, format="m4a")
+    audio.export(wav_path, format="wav")
+
 
 @app.post("/upload_pdf")
 async def upload_pdf(file: UploadFile = File(...)):
-    """
-    Upload a PDF and index its content in the PDF vector store.
-    Old embeddings are wiped for each new upload.
-    """
     global pdf_vector_store
     pdf_vector_store = FAISS.from_embeddings(
         text_embeddings=[("", np.zeros(512))],
         embedding=text_embeddings_obj,
         metadatas=[{"type": "dummy"}]
-    )  # Clean old store
+    )
 
     logger.info(f"Received PDF upload: {file.filename}")
     if not file.filename.lower().endswith(".pdf"):
@@ -129,16 +110,12 @@ async def upload_pdf(file: UploadFile = File(...)):
 
 @app.post("/upload_image")
 async def upload_image(file: UploadFile = File(...)):
-    """
-    Upload an image and index its content in the image vector store.
-    Old embeddings and image data are wiped on new upload.
-    """
     global image_vector_store, image_data_store
     image_vector_store = FAISS.from_embeddings(
         text_embeddings=[("", np.zeros(512))],
         embedding=text_embeddings_obj,
         metadatas=[{"type": "dummy"}]
-    )  # Clean old store
+    )
     image_data_store.clear()
 
     logger.info(f"Received image upload: {file.filename}")
@@ -170,11 +147,6 @@ async def upload_image(file: UploadFile = File(...)):
 
 @app.post("/upload_audio")
 async def upload_audio(file: UploadFile = File(...)):
-    """
-    Upload an audio file, index embeddings in index/query vector stores.
-    Old embeddings are wiped on each new upload.
-    Stores both Wav2Vec2 and CLIP (from transcription) embeddings.
-    """
     global audio_index_vector_store, audio_query_vector_store
     audio_index_vector_store = FAISS.from_embeddings(
         text_embeddings=[("", np.zeros(768))],
@@ -188,16 +160,24 @@ async def upload_audio(file: UploadFile = File(...)):
     )
 
     logger.info(f"Received audio upload: {file.filename}")
-    if not file.filename.lower().endswith((".wav", ".mp3")):
-        raise HTTPException(status_code=400, detail="Only audio files are allowed.")
+
+    if not file.filename.lower().endswith((".wav", ".mp3", ".m4a")):
+        raise HTTPException(status_code=400, detail="Only WAV, MP3, or M4A audio files are allowed.")
 
     file_path = os.path.join("data", file.filename)
     with open(file_path, "wb") as f:
         f.write(await file.read())
 
     try:
-        # Wav2Vec2 embedding (audio index store)
-        emb = embed_audio(file_path)
+        # Convert m4a to wav if needed
+        if file.filename.lower().endswith(".m4a"):
+            wav_path = file_path.rsplit(".", 1)[0] + ".wav"
+            convert_m4a_to_wav(file_path, wav_path)
+            processed_path = wav_path
+        else:
+            processed_path = file_path
+
+        emb = embed_audio(processed_path)
         doc = Document(
             page_content=f"[Audio: {file.filename}]",
             metadata={"type": "audio", "source": "audio"}
@@ -206,8 +186,7 @@ async def upload_audio(file: UploadFile = File(...)):
         emb = emb.reshape(1, -1)
         audio_index_vector_store.add_embeddings([(doc.page_content, emb[0])], metadatas=[doc.metadata])
 
-        # CLIP embedding from transcript (audio query store)
-        text = transcriber(file_path)
+        text = transcriber(processed_path)
         transcription_text = text["text"]
         doc_text = Document(
             page_content=transcription_text,
@@ -223,18 +202,11 @@ async def upload_audio(file: UploadFile = File(...)):
         return JSONResponse(status_code=500, content={"status": "error", "message": str(e)})
 
 class QueryRequest(BaseModel):
-    """
-    Defines the query request schema for /query endpoint.
-    """
     query: str
-    mode: str  # One of: 'pdf', 'image', 'audio'
+    mode: str
 
 @app.post("/query")
 async def query(request: QueryRequest):
-    """
-    Handles search queries for all modalities.
-    Routes query and search based on mode (pdf/image/audio).
-    """
     logger.info(f"Received query: {request.query} for mode: {request.mode}")
 
     if request.mode == "pdf":
