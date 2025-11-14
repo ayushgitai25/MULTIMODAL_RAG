@@ -1,25 +1,24 @@
 FROM python:3.10-slim
 
-# Create non-root user (HF default UID 1000)
-RUN useradd -m -u 1000 user
-USER user
-ENV HOME=/home/user \
-    PATH=/usr/bin:/usr/local/bin:$PATH  # Pre-pend /usr/bin for FFmpeg detection
-
-# Set working directory
-WORKDIR $HOME/app
-
-# Install system dependencies as non-root user (using sudo or direct apt if needed)
-# Note: Non-root apt requires adding user to sudoers or using root temporarily - use multi-stage for safety
-USER root
+# Install system dependencies as root first
 RUN apt-get update && apt-get install -y \
     bash \
     curl \
     procps \
     ffmpeg \
     && rm -rf /var/lib/apt/lists/* \
-    && chown -R user:user /usr/bin/ffmpeg /usr/bin/ffprobe  # Ensure user can execute
+    && chown -R 1000:1000 /usr/bin/ffmpeg /usr/bin/ffprobe
+
+# Create non-root user (HF default UID 1000)
+RUN useradd -m -u 1000 user
 USER user
+
+# Set environment variables
+ENV HOME=/home/user
+ENV PATH=/usr/bin:/usr/local/bin:$PATH
+
+# Set working directory
+WORKDIR $HOME/app
 
 # Copy requirements and install dependencies as user
 COPY --chown=user:user requirements.txt .
