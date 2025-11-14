@@ -1,9 +1,26 @@
 import streamlit as st
 import requests
+import threading
+import uvicorn
+from concurrent.futures import ThreadPoolExecutor
+from app import app as fastapi_app  # Import FastAPI app instance
 
 st.set_page_config(page_title="🎨 Multimodal RAG", page_icon="🤖", layout="centered")
 
-# Title with emoticon and color
+# Start FastAPI server in background thread on first run
+def run_fastapi():
+    try:
+        uvicorn.run(fastapi_app, host="127.0.0.1", port=8000, log_level="info", access_log=False)
+    except Exception as e:
+        st.error(f"Failed to start FastAPI: {e}")
+
+if "fastapi_started" not in st.session_state:
+    executor = ThreadPoolExecutor(max_workers=1)
+    future = executor.submit(run_fastapi)
+    st.session_state.fastapi_started = True
+    st.session_state.fastapi_future = future
+    logger = st.empty()  # Placeholder for potential logs
+
 st.markdown('<h1 style="color:#6A5ACD; font-weight:bold;">🤖 Multimodal RAG with Gemini</h1>', unsafe_allow_html=True)
 
 # Radio buttons for mode selection
@@ -23,7 +40,7 @@ elif mode == "Image":
 elif mode == "Audio":
     uploaded_file = st.file_uploader("🎵 Upload Audio (WAV/MP3)", type=["wav", "mp3"])
 
-API_BASE_URL = "http://localhost:8000"
+API_BASE_URL = "http://127.0.0.1:8000"  # Internal calls to FastAPI
 
 if uploaded_file:
     with st.spinner(f"Uploading {uploaded_file.name}..."):
@@ -33,18 +50,25 @@ if uploaded_file:
             "Image": "upload_image",
             "Audio": "upload_audio"
         }
-        resp = requests.post(f"{API_BASE_URL}/{endpoint_dict[mode]}", files=files)
-        if resp.ok:
-            st.success(f"✅ {uploaded_file.name} processed successfully!")
-        else:
-            st.error(f"❌ Failed to process {uploaded_file.name}: {resp.text}")
+        try:
+            resp = requests.post(f"{API_BASE_URL}/{endpoint_dict[mode]}", files=files, timeout=60)
+            if resp.ok:
+                st.success(f"✅ {uploaded_file.name} processed successfully!")
+            else:
+                st.error(f"❌ Failed to process {uploaded_file.name}: {resp.text}")
+        except requests.exceptions.RequestException as e:
+            st.error(f"❌ API connection error: {e}. Ensure FastAPI is running.")
 
 query = st.text_input("Enter your query:")
 
 if st.button("Ask") and query:
     with st.spinner("Generating answer..."):
-        response = requests.post(f"{API_BASE_URL}/query", json={"query": query, "mode": mode.lower()})
-        result = response.json()
+        try:
+            response = requests.post(f"{API_BASE_URL}/query", json={"query": query, "mode": mode.lower()}, timeout=120)
+            result = response.json()
+        except requests.exceptions.RequestException as e:
+            st.error(f"❌ Query failed: {e}")
+            result = {"answer": "Error connecting to backend."}
     
     # Styled answer box with emoji and background
     st.markdown(
@@ -114,4 +138,3 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
-
