@@ -11,8 +11,7 @@ from langchain_community.vectorstores import FAISS
 from transformers import pipeline
 from langchain.embeddings.base import Embeddings
 
-from pydub import AudioSegment  # For m4a to wav conversion
-import shutil
+from pydub import AudioSegment
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -77,7 +76,6 @@ audio_query_vector_store = FAISS.from_embeddings(
 def convert_m4a_to_wav(m4a_path, wav_path):
     audio = AudioSegment.from_file(m4a_path, format="m4a")
     audio.export(wav_path, format="wav")
-
 
 @app.post("/upload_pdf")
 async def upload_pdf(file: UploadFile = File(...)):
@@ -169,7 +167,6 @@ async def upload_audio(file: UploadFile = File(...)):
         f.write(await file.read())
 
     try:
-        # Convert m4a to wav if needed
         if file.filename.lower().endswith(".m4a"):
             wav_path = file_path.rsplit(".", 1)[0] + ".wav"
             convert_m4a_to_wav(file_path, wav_path)
@@ -198,7 +195,7 @@ async def upload_audio(file: UploadFile = File(...)):
         logger.info(f"Audio '{file.filename}' embedded and indexed.")
         return {"status": "success", "message": f"Audio '{file.filename}' processed and indexed."}
     except Exception as e:
-        logger.error(f"Error processing audio: {type(e).__name__}: {e}")
+        logger.error(f"Error processing audio: {e}")
         return JSONResponse(status_code=500, content={"status": "error", "message": str(e)})
 
 class QueryRequest(BaseModel):
