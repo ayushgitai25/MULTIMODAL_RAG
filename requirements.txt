@@ -5,7 +5,7 @@ torchvision
 torchaudio
 streamlit
 fastapi
-uvicorn
+uvicorn[standard]
 langchain
 langchain-core
 langchain-community
