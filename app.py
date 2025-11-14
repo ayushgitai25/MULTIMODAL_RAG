@@ -18,17 +18,18 @@ from langchain_core.documents import Document
 from langchain_community.vectorstores import FAISS
 from langchain.embeddings.base import Embeddings
 
-try:
-    from transformers import pipeline
-except ImportError:
-    # fallback if top-level export is broken for some reason
-    from transformers.pipelines import pipeline
-
-
 # --------- Initialization --------- #
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+try:
+    from transformers import pipeline
+    logger.info("Using 'from transformers import pipeline'")
+except ImportError:
+    # fallback if top-level export is broken for some reason
+    from transformers.pipelines import pipeline
+    logger.info("Using fallback: 'from transformers.pipelines import pipeline'")
 
 app = FastAPI()
 os.makedirs("data", exist_ok=True)
@@ -252,6 +253,7 @@ async def query(request: QueryRequest):
     answer = query_llm(llm, content)
     logger.info(f"Generated answer: {answer}")
     return {"answer": answer}
+
 
 
 
