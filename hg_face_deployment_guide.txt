@@ -1,0 +1,192 @@
+THING TO CHECK BEFORE DEPLOYING:
+=================================
+## **Always: app.py => OUR BACKEND CODE.** streamlit one will get executed seperately but that's not our app.py.
+## In app.py: add CORS Middleware:
+         # ✅ Add CORS middleware with proper settings
+                  app.add_middleware(
+                      CORSMiddleware,
+                      allow_origins=["*"],  # In production, specify your domains
+                      allow_credentials=True,
+                      allow_methods=["*"],
+                      allow_headers=["*"],
+                  )
+## Dockefile will have multi command seperated by '&'. EXPOSE both ports.
+## Add this line in command so streamlit/UI can allow upload media: --server.enableXsrfProtection=false
+## COMMAND is like: 
+            CMD ["bash", "-c", "uvicorn app:app --host 0.0.0.0 --port 8000 --log-level info & streamlit run frontend_app.py --server.port=7860 --server.address=0.0.0.0 --server.headless=true --browser.gatherUsageStats=false --server.enableXsrfProtection=false"]
+## Dockerfile:
+FROM python:3.10-slim
+
+# Install bash, FFmpeg, and essentials (for HF Spaces compatibility and audio processing)
+RUN apt-get update && apt-get install -y \
+    bash \
+    curl \
+    procps \
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user (HF default UID 1000)
+RUN useradd -m -u 1000 user
+USER user
+ENV HOME=/home/user \
+    PATH=/home/user/.local/bin:$PATH
+
+# Set working directory
+WORKDIR $HOME/app
+
+# Copy requirements and install dependencies as user
+COPY --chown=user:user requirements.txt .
+RUN pip install --no-cache-dir --user -r requirements.txt
+
+# Copy application files with ownership
+COPY --chown=user:user . .
+
+# Create data directory with permissions
+RUN mkdir -p data && chmod 755 data
+
+EXPOSE 7860 8000
+
+# Run as JSON array (exec form) - no shell parsing issues
+CMD ["bash", "-c", "uvicorn app:app --host 0.0.0.0 --port 8000 --log-level info & streamlit run frontend_app.py --server.port=7860 --server.address=0.0.0.0 --server.headless=true --browser.gatherUsageStats=false --server.enableXsrfProtection=false"]
+
+
+
+===========================
+AI Document Summarizer - Hugging Face Spaces Deployment Guide
+===========================
+Add secrets in your app code (app.py):
+
+   import os
+   import streamlit as st
+
+   groq_api_key = st.secrets.get("GROQ_API_KEY", os.getenv("GROQ_API_KEY", ""))
+   if not groq_api_key:
+       st.error("❌ GROQ_API_KEY is missing! Please set it in Streamlit secrets or your environment.")
+       st.stop()
+
+   # Set environment variable for libraries that rely on it
+
+
+1. Repository Preparation
+-------------------------
+- Add all necessary files to your repo:
+  - app.py          (main Streamlit application)
+  - requirements.txt
+  - Dockerfile      (custom container)
+  - README.md       (can contain this documentation)
+
+2. README.md Front-Matter Example
+---------------------------------
+---
+title: "AI Document Summarizer"
+emoji: "🔍"
+colorFrom: "blue"
+colorTo: "green"
+sdk: "streamlit"
+sdk_version: "1.26.0"
+app_file: "app.py"
+pinned: false
+---
+
+# 🔍 AI Document Summarizer - Streamlit Application
+This Streamlit app allows summarizing documents using AI.
+
+Features:
+1. Input Processing
+   - Accepts PDF, Website URLs, YouTube videos
+   - Extracts and preprocesses content
+
+2. Text Extraction & Loading
+   - PDF: PyPDFLoader
+   - Website: UnstructuredURLLoader
+   - YouTube: YouTubeTranscriptApi or YoutubeLoader fallback
+
+3. Document Chunking
+   - 4000 chars chunks, 200 overlap
+   - Maintains context for LLMs
+
+4. AI Model Selection
+   - Multiple Groq models: Llama, GPT-OSS, Qwen, etc.
+   - Models from 8B to 120B parameters
+
+5. LLM Summarization Process
+   - Uses LangChain's load_summarize_chain
+   - Hierarchical for large docs, single-pass for small docs
+
+6. Output Generation
+   - Summarized text with analytics
+   - Download and copy functionality
+
+Core Workflow: Raw Input → Text Extraction → Chunking → LLM Processing → Summary Output
+
+3. Dockerfile Example
+---------------------
+FROM python:3.11-slim
+WORKDIR /app
+RUN apt-get update && apt-get install -y \
+    build-essential curl \
+    && rm -rf /var/lib/apt/lists/*
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+COPY . ./
+ENV STREAMLIT_HOME=/tmp/.streamlit
+ENV STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
+EXPOSE 8501
+HEALTHCHECK CMD curl --fail http://localhost:8501/_stcore/health
+ENTRYPOINT ["streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+
+4. GitHub Actions Workflow
+--------------------------
+Create file: .github/workflows/main.yml
+
+name: Sync to Hugging Face hub
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  sync-to-hub:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          lfs: true
+      - name: Configure git
+        run: |
+          git config --global user.email "actions@github.com"
+          git config --global user.name "github-actions"
+      - name: Push to Hugging Face hub
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          git remote add space https://USERNAME:$HF_TOKEN@huggingface.co/spaces/USERNAME/SPACE_NAME
+          git push space main --force
+
+5. Add GitHub Secrets
+---------------------
+- Go to GitHub repo → Settings → Secrets → Actions → New repository secret
+- Name: HF_TOKEN
+- Value: Your Hugging Face access token
+
+6. Sync & Verify
+----------------
+- Push code to GitHub
+- Go to Actions tab → verify workflow success
+- Check Space repository → files should appear
+
+7. Set HF Space Secrets
+-----------------------
+- Go to Hugging Face Space → Settings → Secrets and variables
+- Add secrets like GROQ_API_KEY = "your_api_key_here"
+
+8. Deployment
+-------------
+- Once synced and secrets are set, the Space automatically builds and deploys
+- Open the Space URL → app should be running successfully
+
+WHENEVER YOU WANT TO CHANGE ANYTHING, JUST PUSH IN YOUR ACTUAL REPO, AND THOSE CHANGES WILL BY SYNCED TO APP AUTOMATICALLY.
+
+===========================
+End of Deployment Guide
+===========================
