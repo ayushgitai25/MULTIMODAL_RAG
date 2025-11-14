@@ -1,8 +1,9 @@
 import streamlit as st
 import requests
+import time
 
 st.set_page_config(
-    page_title="Multimodal RAG", 
+    page_title="🎨 Multimodal RAG", 
     page_icon="🤖", 
     layout="wide",
     initial_sidebar_state="collapsed"
@@ -79,8 +80,32 @@ st.markdown("""
     font-style: normal;
     z-index: 1000;
 }
+.status-processing {
+    background: #fff3cd;
+    padding: 1rem;
+    border-radius: 8px;
+    border-left: 4px solid #ffc107;
+}
+.status-success {
+    background: #d4edda;
+    padding: 1rem;
+    border-radius: 8px;
+    border-left: 4px solid #28a745;
+}
+.status-error {
+    background: #f8d7da;
+    padding: 1rem;
+    border-radius: 8px;
+    border-left: 4px solid #dc3545;
+}
 </style>
 """, unsafe_allow_html=True)
+
+# Initialize session state
+if 'uploaded_files' not in st.session_state:
+    st.session_state.uploaded_files = {}
+if 'processed_files' not in st.session_state:
+    st.session_state.processed_files = set()
 
 # Main Header
 st.markdown("""
@@ -97,196 +122,337 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Main content in columns for better layout
+# Main content in columns
 col1, col2 = st.columns([1, 2])
 
+# Left column: Upload tabs (auto-processing)
 with col1:
     st.markdown('<div class="content-card">', unsafe_allow_html=True)
-    st.markdown("### 🚀 Quick Start")
+    st.markdown("### 🚀 File Upload")
     
-    # Tabbed interface for modes
-    tab1, tab2, tab3 = st.tabs(["📄 PDF", "🖼️ Image", "🎵 Audio"])
+    # Tabbed interface for uploads
+    tab1, tab2, tab3 = st.tabs(["📄 PDF Analysis", "🖼️ Image Understanding", "🎵 Audio Processing"])
+    
+    uploaded_file = None
+    mode = None
+    status_container = None
     
     with tab1:
-        st.markdown("**Upload PDF Document**")
+        st.markdown("**Upload PDF Document for Text Analysis**")
         uploaded_file_pdf = st.file_uploader(
-            "📄 Choose a PDF file",
+            "📄 Choose a PDF file (max 50MB)",
             type="pdf",
+            key="pdf_uploader",
             help="Upload PDF documents for text extraction and semantic search"
         )
+        
         if uploaded_file_pdf:
-            st.info(f"📊 File: **{uploaded_file_pdf.name}** | Size: {uploaded_file_pdf.size/1024:.1f} KB")
+            # Auto-process PDF
+            if uploaded_file_pdf.name not in st.session_state.processed_files:
+                status_container = st.container()
+                with status_container:
+                    status_placeholder = st.empty()
+                    status_placeholder.info(f"🔄 **Processing {uploaded_file_pdf.name}...**")
+                    
+                    try:
+                        files = {"file": (uploaded_file_pdf.name, uploaded_file_pdf.getvalue())}
+                        resp = requests.post("http://localhost:8000/upload_pdf", files=files, timeout=120)
+                        
+                        if resp.ok:
+                            st.session_state.processed_files.add(uploaded_file_pdf.name)
+                            st.session_state.uploaded_files[uploaded_file_pdf.name] = {
+                                "mode": "PDF",
+                                "timestamp": time.time()
+                            }
+                            st.rerun()  # Refresh to show success
+                        else:
+                            st.error(f"❌ Failed to process PDF: {resp.text}")
+                    except Exception as e:
+                        st.error(f"⚠️ Processing error: {str(e)}")
+            
+            # Show file status
+            if uploaded_file_pdf.name in st.session_state.processed_files:
+                st.markdown(f'<div class="status-success">✅ **{uploaded_file_pdf.name} processed successfully!**</div>', unsafe_allow_html=True)
+                st.info(f"📊 File Size: {uploaded_file_pdf.size / 1024:.1f} KB | **Ready for querying!**")
+                uploaded_file = uploaded_file_pdf
+                mode = "PDF"
     
     with tab2:
-        st.markdown("**Upload Image File**")
+        st.markdown("**Upload Image for Visual Analysis**")
         uploaded_file_image = st.file_uploader(
-            "🖼️ Choose an image file",
+            "🖼️ Choose an image file (max 10MB)",
             type=["jpg", "jpeg", "png"],
+            key="image_uploader",
             help="Upload images for visual semantic search with CLIP embeddings"
         )
+        
         if uploaded_file_image:
-            st.info(f"🖼️ File: **{uploaded_file_image.name}** | Size: {uploaded_file_image.size/1024:.1f} KB")
+            # Auto-process Image
+            if uploaded_file_image.name not in st.session_state.processed_files:
+                status_container = st.container()
+                with status_container:
+                    status_placeholder = st.empty()
+                    status_placeholder.info(f"🔄 **Processing {uploaded_file_image.name}...**")
+                    
+                    try:
+                        files = {"file": (uploaded_file_image.name, uploaded_file_image.getvalue())}
+                        resp = requests.post("http://localhost:8000/upload_image", files=files, timeout=60)
+                        
+                        if resp.ok:
+                            st.session_state.processed_files.add(uploaded_file_image.name)
+                            st.session_state.uploaded_files[uploaded_file_image.name] = {
+                                "mode": "Image",
+                                "timestamp": time.time()
+                            }
+                            st.rerun()
+                        else:
+                            st.error(f"❌ Failed to process image: {resp.text}")
+                    except Exception as e:
+                        st.error(f"⚠️ Processing error: {str(e)}")
+            
+            # Show file status
+            if uploaded_file_image.name in st.session_state.processed_files:
+                st.markdown(f'<div class="status-success">✅ **{uploaded_file_image.name} processed successfully!**</div>', unsafe_allow_html=True)
+                st.info(f"🖼️ File Size: {uploaded_file_image.size / 1024:.1f} KB | **Ready for visual queries!**")
+                uploaded_file = uploaded_file_image
+                mode = "Image"
     
     with tab3:
-        st.markdown("**Upload Audio File**")
+        st.markdown("**Upload Audio for Speech Analysis**")
         uploaded_file_audio = st.file_uploader(
-            "🎵 Choose an audio file",
+            "🎵 Choose an audio file (max 25MB)",
             type=["wav", "mp3"],
-            help="Upload audio files for speech-to-text and audio embedding"
+            key="audio_uploader",
+            help="Upload audio files for speech-to-text transcription and semantic analysis"
         )
+        
         if uploaded_file_audio:
-            st.info(f"🎵 File: **{uploaded_file_audio.name}** | Size: {uploaded_file_audio.size/1024:.1f} KB")
-    
-    # Process upload button
-    if (uploaded_file_pdf or uploaded_file_image or uploaded_file_audio):
-        col_up1, col_up2 = st.columns([3, 1])
-        with col_up1:
-            if st.button("📤 **Process & Index**", type="primary", use_container_width=True):
-                pass  # Will be handled in main logic
-        with col_up2:
-            st.markdown("**Status:** Ready to process")
+            # Auto-process Audio
+            if uploaded_file_audio.name not in st.session_state.processed_files:
+                status_container = st.container()
+                with status_container:
+                    status_placeholder = st.empty()
+                    status_placeholder.info(f"🔄 **Processing {uploaded_file_audio.name}...**")
+                    
+                    try:
+                        files = {"file": (uploaded_file_audio.name, uploaded_file_audio.getvalue())}
+                        resp = requests.post("http://localhost:8000/upload_audio", files=files, timeout=180)
+                        
+                        if resp.ok:
+                            st.session_state.processed_files.add(uploaded_file_audio.name)
+                            st.session_state.uploaded_files[uploaded_file_audio.name] = {
+                                "mode": "Audio",
+                                "timestamp": time.time()
+                            }
+                            st.rerun()
+                        else:
+                            st.error(f"❌ Failed to process audio: {resp.text}")
+                    except Exception as e:
+                        st.error(f"⚠️ Processing error: {str(e)}")
+            
+            # Show file status
+            if uploaded_file_audio.name in st.session_state.processed_files:
+                st.markdown(f'<div class="status-success">✅ **{uploaded_file_audio.name} processed successfully!**</div>', unsafe_allow_html=True)
+                st.info(f"🎵 File Size: {uploaded_file_audio.size / 1024:.1f} KB | **Ready for audio queries!**")
+                uploaded_file = uploaded_file_audio
+                mode = "Audio"
     
     st.markdown('</div>', unsafe_allow_html=True)
 
+# Right column: Query interface
 with col2:
     st.markdown('<div class="content-card">', unsafe_allow_html=True)
-    st.markdown("### ❓ Query Interface")
+    st.markdown("### ❓ Ask Questions")
     
-    # Query input with enhanced styling
+    # Show current active mode
+    if mode:
+        st.markdown(f"**Current Mode:** {mode}")
+        st.markdown(f'<div class="status-success">📁 **{list(st.session_state.processed_files)[-1] if st.session_state.processed_files else "No file"} loaded**</div>', unsafe_allow_html=True)
+    else:
+        st.warning("👆 **Please upload a file first** to enable querying")
+    
+    # Query input (disabled if no mode selected)
     query = st.text_area(
-        "💭 **Enter your query here:**",
-        placeholder="Ask questions about your uploaded PDF, describe what you see in images, or inquire about audio content...",
-        height=100,
-        help="Be specific about what you're looking for. The system will retrieve relevant context from your uploaded files."
+        "💭 **Enter your question about the uploaded content:**",
+        placeholder="Examples:\n• PDF: 'What are the main findings of this document?'\n• Image: 'What's happening in this picture?'\n• Audio: 'What was the main topic discussed?'",
+        height=120,
+        disabled=not mode,
+        help="Ask natural language questions about your uploaded file. The AI will search through the content to provide relevant answers."
     )
     
-    # Mode selection (simplified since we have tabs)
-    col_mode1, col_mode2, col_mode3, col_mode4 = st.columns(4)
-    with col_mode1:
-        mode_pdf = st.radio("Mode:", ["PDF", "Image", "Audio"], key="mode_select", horizontal=True, label_visibility="collapsed")
-    
-    # Ask button with status
+    # Generate Answer button
     col_ask1, col_ask2 = st.columns([3, 1])
     with col_ask1:
-        ask_button = st.button("🔍 **Generate Answer**", type="primary", use_container_width=True, disabled=not query)
+        ask_button = st.button("🔍 **Generate AI Answer**", type="primary", use_container_width=True, disabled=not (query and mode))
     with col_ask2:
-        status_placeholder = st.empty()
+        if mode:
+            st.success("✅ **Ready to query!**")
+        else:
+            st.info("📤 **Upload file first**")
     
     st.markdown('</div>', unsafe_allow_html=True)
 
-# File processing logic (consolidated)
-uploaded_file = None
-mode = None
-if uploaded_file_pdf:
-    uploaded_file = uploaded_file_pdf
-    mode = "PDF"
-elif uploaded_file_image:
-    uploaded_file = uploaded_file_image
-    mode = "Image"
-elif uploaded_file_audio:
-    uploaded_file = uploaded_file_audio
-    mode = "Audio"
-
-# Process file upload
-if uploaded_file and st.session_state.get('file_processed', False) != uploaded_file.name:
-    with st.spinner(f"🔄 Processing {uploaded_file.name}... This may take a moment."):
-        files = {"file": (uploaded_file.name, uploaded_file.getvalue())}
-        endpoint_dict = {
-            "PDF": "upload_pdf",
-            "Image": "upload_image", 
-            "Audio": "upload_audio"
-        }
-        
-        status_placeholder.info("📤 Uploading and processing...")
-        resp = requests.post(f"http://localhost:8000/{endpoint_dict[mode]}", files=files, timeout=60)
-        
-        if resp.ok:
-            st.session_state['file_processed'] = uploaded_file.name
-            st.success(f"✅ **{uploaded_file.name} processed and indexed successfully!**")
-            status_placeholder.success("✅ Processing complete!")
-            st.balloons()
-        else:
-            status_placeholder.error(f"❌ Processing failed: {resp.text}")
-            st.error(f"Failed to process {uploaded_file.name}: {resp.text}")
-
-# Query processing with enhanced UI
+# Results section (spans full width)
 if ask_button and query and mode:
-    status_placeholder.info("🧠 Generating intelligent response...")
-    
-    with st.spinner("🤔 Analyzing your query and retrieving relevant context..."):
+    result_container = st.container()
+    with result_container:
+        # Progress indicator
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        
+        status_text.info("🧠 **Analyzing your query and searching relevant context...**")
+        progress_bar.progress(30)
+        
         try:
+            # Make query request
+            progress_bar.progress(70)
             response = requests.post(
                 "http://localhost:8000/query", 
                 json={"query": query, "mode": mode.lower()},
-                timeout=90
+                timeout=120
             )
+            progress_bar.progress(100)
+            
             result = response.json()
             
-            # Enhanced Answer Card
+            # Clear progress
+            status_text.success("✅ **Answer generated successfully!**")
+            progress_bar.empty()
+            
+            # Enhanced Answer Display
             st.markdown(f'''
             <div class="answer-card">
                 <h3 style="margin-top: 0; display: flex; align-items: center;">
-                    💡 AI Response
-                    <span style="margin-left: auto; font-size: 0.9em; opacity: 0.8;">Generated by Gemini</span>
+                    💡 **AI-Powered Answer**
+                    <span style="margin-left: auto; font-size: 0.9em; opacity: 0.8; background: rgba(255,255,255,0.2); padding: 4px 12px; border-radius: 15px;">
+                        {mode} Mode
+                    </span>
                 </h3>
-                <div style="font-size: 1.1em; line-height: 1.6;">
-                    {result.get("answer", "No answer generated. Please try rephrasing your query.")}
+                <div style="font-size: 1.1em; line-height: 1.7; margin-top: 1rem;">
+                    {result.get("answer", "No answer generated. Please try rephrasing your query or check the backend.")}
                 </div>
             </div>
             ''', unsafe_allow_html=True)
             
-            # Enhanced Context Section
+            # Context/Retrieved Information
             context = result.get("context", None)
             if context:
                 st.markdown(f'''
                 <div class="context-card">
                     <h4 style="margin: 0 0 1rem 0; display: flex; align-items: center;">
-                        📚 Retrieved Context <span style="font-size: 0.9em; color: #7f8c8d; margin-left: 10px;">({len(context if isinstance(context, list) else [context])} sources)</span>
+                        📚 **Retrieved Context** 
+                        <span style="font-size: 0.9em; color: #7f8c8d; margin-left: 10px;">
+                            ({len([c for c in (context if isinstance(context, list) else [context]) if c])} sources found)
+                        </span>
                     </h4>
                 </div>
                 ''', unsafe_allow_html=True)
                 
-                # Context expanders with better styling
-                for idx, ctx in enumerate(context if isinstance(context, list) else [context]):
-                    with st.expander(f"📖 Context {idx+1}: {'Image' if isinstance(ctx, dict) and 'image' in str(ctx).lower() else 'Text'}", expanded=False):
+                # Individual context items
+                context_items = context if isinstance(context, list) else [context]
+                for idx, ctx in enumerate(context_items):
+                    with st.expander(f"📖 Context {idx+1}: {mode} Source", expanded=(idx == 0)):
                         if isinstance(ctx, dict) and 'text' in ctx:
-                            st.markdown(f"**Source:** {ctx.get('source', 'Document')}")
+                            st.markdown(f"**Source Type:** {ctx.get('source', 'Document').title()}")
+                            if 'image_id' in ctx:
+                                st.markdown(f"**Image ID:** `{ctx['image_id']}`")
                             st.write(ctx['text'])
                         else:
-                            st.markdown(f"**Source:** Retrieved Document")
+                            st.markdown(f"**Content:**")
                             st.write(str(ctx))
             
-            status_placeholder.success("✅ Response generated successfully!")
+            # Query history (simple)
+            if 'queries' not in st.session_state:
+                st.session_state.queries = []
+            st.session_state.queries.append({
+                "query": query,
+                "mode": mode,
+                "timestamp": time.time()
+            })
+            
+            if len(st.session_state.queries) > 1:
+                with st.expander(f"📋 Recent Queries ({len(st.session_state.queries)})", expanded=False):
+                    for i, q in enumerate(st.session_state.queries[-3:]):  # Last 3
+                        st.markdown(f"**Q{i+1}:** *{q['mode']}* - {q['query'][:100]}{'...' if len(q['query']) > 100 else ''}")
             
         except requests.exceptions.Timeout:
-            st.error("⏱️ Request timed out. Please try a shorter query or check the backend service.")
-            status_placeholder.error("⏱️ Generation timeout")
+            progress_bar.empty()
+            status_text.error("⏱️ **Request timed out.** Please try a shorter query or check the backend service.")
+            st.error("The query took too long to process. Try simplifying your question or uploading a smaller file.")
         except Exception as e:
-            st.error(f"⚠️ An error occurred: {str(e)}")
-            status_placeholder.error("⚠️ Processing error")
+            progress_bar.empty()
+            status_text.error("⚠️ **Processing error occurred.**")
+            st.error(f"An unexpected error occurred: {str(e)}")
 
-# Instructions when no file is uploaded
-if not (uploaded_file_pdf or uploaded_file_image or uploaded_file_audio):
-    st.markdown('<div class="content-card">', unsafe_allow_html=True)
+# Welcome/Instructions when no files uploaded
+if not st.session_state.processed_files:
+    st.markdown('<div class="content-card" style="text-align: center;">', unsafe_allow_html=True)
     st.markdown("""
     ### 👋 Welcome to Multimodal RAG
     
-    **How it works:**
-    1. **Upload** a file using the tabs on the left (PDF, Image, or Audio)
-    2. **Wait** for processing and indexing to complete  
-    3. **Ask** questions in natural language about your uploaded content
-    4. **Get** intelligent, context-aware responses powered by advanced AI
+    **Simple 3-Step Process:**
+    1. **Choose** a tab (PDF, Image, or Audio) and upload your file
+    2. **Wait** for automatic processing (happens instantly in the background)
+    3. **Ask** natural language questions about your uploaded content
     
-    **Supported formats:**
-    - 📄 **PDF**: Text extraction and semantic search
-    - 🖼️ **Images**: Visual understanding and description  
-    - 🎵 **Audio**: Speech-to-text transcription and analysis
+    **What each mode does:**
+    - 📄 **PDF Analysis**: Extracts text and enables document Q&A
+    - 🖼️ **Image Understanding**: Analyzes visual content and describes scenes  
+    - 🎵 **Audio Processing**: Transcribes speech and answers about conversations
     
-    **Examples:**
-    - *PDF*: "What are the main points discussed in this document?"
-    - *Image*: "What's happening in this picture?" 
-    - *Audio*: "What did the speaker say about the main topic?"
+    **Example Questions:**
+    - *PDF*: "What are the key recommendations in this report?"
+    - *Image*: "What objects can you identify in this photo?"
+    - *Audio*: "What was the main topic of this recording?"
     """)
+    
+    col_ex1, col_ex2, col_ex3 = st.columns(3)
+    with col_ex1:
+        st.markdown("""
+        <div style="background: linear-gradient(135deg, #e3f2fd, #bbdefb); padding: 1rem; border-radius: 10px; text-align: center;">
+            <h4 style="color: #1976d2; margin-top: 0;">📄 Document Q&A</h4>
+            <p style="color: #1565c0;">Upload reports, papers, or manuals</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col_ex2:
+        st.markdown("""
+        <div style="background: linear-gradient(135deg, #f3e5f5, #e1bee7); padding: 1rem; border-radius: 10px; text-align: center;">
+            <h4 style="color: #7b1fa2; margin-top: 0;">🖼️ Visual AI</h4>
+            <p style="color: #4a148c;">Analyze photos, diagrams, charts</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col_ex3:
+        st.markdown("""
+        <div style="background: linear-gradient(135deg, #e8f5e8, #c8e6c9); padding: 1rem; border-radius: 10px; text-align: center;">
+            <h4 style="color: #2e7d32; margin-top: 0;">🎵 Speech Analysis</h4>
+            <p style="color: #1b5e20;">Process interviews, meetings, voice notes</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# File management (if multiple files uploaded)
+if len(st.session_state.processed_files) > 1:
+    st.markdown('<div class="content-card">', unsafe_allow_html=True)
+    st.markdown("### 📁 Manage Uploaded Files")
+    
+    col_manage1, col_manage2 = st.columns(2)
+    with col_manage1:
+        st.markdown("**Currently Active Files:**")
+        for filename in sorted(list(st.session_state.processed_files), key=lambda x: st.session_state.uploaded_files.get(x, {}).get('timestamp', 0), reverse=True)[:5]:
+            mode_icon = "📄" if st.session_state.uploaded_files[filename]["mode"] == "PDF" else "🖼️" if st.session_state.uploaded_files[filename]["mode"] == "Image" else "🎵"
+            st.write(f"{mode_icon} **{filename}** ({st.session_state.uploaded_files[filename]['mode']})")
+    
+    with col_manage2:
+        if st.button("🗑️ Clear All Files", type="secondary"):
+            st.session_state.processed_files.clear()
+            st.session_state.uploaded_files.clear()
+            st.session_state.queries.clear()
+            st.rerun()
+        st.info("**Note:** Clearing files removes them from memory. Upload new files to query different content.")
+    
     st.markdown('</div>', unsafe_allow_html=True)
 
 # Enhanced Footer
@@ -294,12 +460,12 @@ st.markdown("""
 <div class="footer">
     <div style="max-width: 800px; margin: 0 auto; padding: 1rem;">
         <p style="margin: 0; text-align: center;">
-            🔬 Built with cutting-edge AI technologies | 
-            <span style="color: #3498db;">Production-ready RAG pipeline</span> | 
+            🔬 Built with cutting-edge multimodal AI | 
+            <span style="color: #3498db;">Production RAG Pipeline</span> | 
             🚀 Deployed on Hugging Face Spaces
         </p>
         <p style="margin: 0.5rem 0 0 0; font-size: 0.9em; opacity: 0.7;">
-            © 2025 | Advanced Multimodal AI Assistant
+            © 2025 | Advanced AI Content Analysis Assistant | Auto-processing enabled
         </p>
     </div>
 </div>
