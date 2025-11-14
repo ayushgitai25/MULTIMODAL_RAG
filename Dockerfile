@@ -29,6 +29,7 @@ COPY . .
 RUN chown -R app:app /app /home/app
 USER app
 
-EXPOSE 8000 8501
+EXPOSE 7860
 
-CMD ["bash", "-c", "uvicorn app:app --host 0.0.0.0 --port 8000 --log-level info & streamlit run frontend_app.py --server.port=8501 --server.address=0.0.0.0 --server.headless=true --server.enableCORS=false --browser.gatherUsageStats=false"]
+# Single foreground process: Streamlit on 7860 (FastAPI runs internally via thread)
+CMD ["streamlit", "run", "frontend_app.py", "--server.port=7860", "--server.address=0.0.0.0", "--server.headless=true", "--server.enableCORS=false", "--browser.gatherUsageStats=false"]
