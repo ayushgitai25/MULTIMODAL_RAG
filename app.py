@@ -7,6 +7,7 @@ Multimodal FastAPI Application for RAG with PDF, Image, and Audio Support.
 - Uses LangChain Embeddings objects for forward compatibility
 - Processes queries routed to relevant vector store
 """
+
 import io, base64, os
 from PIL import Image
 import logging
@@ -253,8 +254,3 @@ async def query(request: QueryRequest):
     answer = query_llm(llm, content)
     logger.info(f"Generated answer: {answer}")
     return {"answer": answer}
-
-
-
-
-
