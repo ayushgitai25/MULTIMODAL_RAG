@@ -37,32 +37,33 @@ Here's a detailed, step-by-step explanation of how this multimodal RAG system wo
 ## Step 1: User Uploads Data
 User uploads a file through the Streamlit UI.
 
-[Expanded Definition] Streamlit: A Python library used to quickly build and deploy simple, interactive web applications (like the one you use) without needing complex web development knowledge.
+[Expanded Definition] **Streamlit**: A Python library used to quickly build and deploy simple, interactive web applications (like the one you use) without needing complex web development knowledge.
 
 The file is saved temporarily to the backend via a POST request to /upload_pdf, /upload_image, or /upload_audio.
 
-[Expanded Definition] POST Request: A standard method used in web development to send data from a client (your web browser) to a server (the backend). In this case, it's used to send the entire uploaded file.
+[Expanded Definition] **POST** Request: A standard method used in web development to send data from a client (your web browser) to a server (the backend). In this case, it's used to send the entire uploaded file.
 
 The backend validates the file type and begins processing it immediately.
 
 ## Step 2: Data Type Specific Processing
 A. PDF Processing (in processor.py)
-Python
 
+```python
 def process_pdf(pdf_path):
-Library: Uses PyMuPDF (fitz) to parse PDF documents.
+```
+Library: Uses **PyMuPDF** (fitz) to parse PDF documents.
 
-[Expanded Definition] PyMuPDF (fitz): A high-performance Python library for accessing and manipulating PDF files. It's used here to extract all the raw text and any embedded images from each page.
+[Expanded Definition] **PyMuPDF** (fitz): A high-performance Python library for accessing and manipulating PDF files. It's used here to extract all the raw text and any embedded images from each page.
 
 What happens:
 
 Opens the PDF using fitz.open(pdf_path).
 
-For each page: page.get_text() extracts all raw text content.
+For each page: *page.get_text()* extracts all raw text content.
 
-Text is chunked using LangChain's RecursiveCharacterTextSplitter (500 characters per chunk, 100 character overlap).
+Text is chunked using LangChain's **RecursiveCharacterTextSplitter** (500 characters per chunk, 100 character overlap).
 
-[Expanded Definition] Chunking: This process breaks down large documents into smaller, digestible pieces. This is crucial because AI models have a limited "context window" (a maximum amount of text they can read at once). The overlap ensures that a complete idea isn't split awkwardly between two chunks.
+[Expanded Definition] **Chunking**: This process breaks down large documents into smaller, digestible pieces. This is crucial because AI models have a limited "context window" (a maximum amount of text they can read at once). The overlap ensures that a complete idea isn't split awkwardly between two chunks.
 
 For each text chunk: Creates a Document object (a LangChain data structure) with metadata (page number, type="text").
 
@@ -73,9 +74,10 @@ Returns: A list of Document objects, their corresponding embeddings (vectors), a
 [Expanded Definition] Base64: A text-based encoding a for binary data. It's a way to represent an image (which is binary) as a long string of text, making it easy to embed directly into a web page or send in a data message.
 
 B. Image Processing
-Python
+```python
 
 def embed_image(image_data):
+```
 Model: OpenAI CLIP (openai/clip-vit-base-patch32)
 
 Process:
