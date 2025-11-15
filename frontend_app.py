@@ -368,7 +368,7 @@ if ask_button and query and mode:
                 base64_data = media.get("base64", "")
                 if base64_data:
                     image_data = base64.b64decode(base64_data)
-                    st.image(image_data, caption=f"Uploaded: {media.get('filename', 'Image')}", use_column_width=True)
+                    st.image(image_data, caption=f"Uploaded: {media.get('filename', 'Image')}", use_container_width=True)
                 else:
                     st.warning("Image data not available for direct display.")
                 st.markdown('</div>', unsafe_allow_html=True)
@@ -538,3 +538,4 @@ st.markdown("""
     </div>
 </div>
 """, unsafe_allow_html=True)
+
