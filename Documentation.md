@@ -268,7 +268,7 @@ text_embeddings=[("", np.zeros(512))], # 512D text embeddings
 
 embedding=text_embeddings_obj,
 
-metadatas=\[{"type": "dummy"}]
+metadatas=[{"type": "dummy"}]
 
 )
 ```
@@ -293,14 +293,14 @@ metadatas=\[{"type": "dummy"}]
 
 ```python
 
-\# Example: Adding embeddings to FAISS
+# Example: Adding embeddings to FAISS
 
 pdf_vector_store.add_embeddings(
 
-\[(doc.page_content, emb) for doc, emb in zip(docs, embeddings)\], \#
+[(doc.page_content, emb) for doc, emb in zip(docs, embeddings)], \#
 (text, vector) pairs
 
-metadatas=\[doc.metadata for doc in docs\] \# Store metadata alongside
+metadatas=[doc.metadata for doc in docs] # Store metadata alongside
 
 )
 ```
@@ -318,9 +318,9 @@ model.
 
 ```python
 
-\# When user asks \"What are the main findings?\" in PDF mode
+# When user asks "What are the main findings?" in PDF mode
 
-query_embedding = embed_text(\"What are the main findings?\") \# 512D
+query_embedding = embed_text("What are the main findings?") # 512D
 vector
 ```
 **Step 2: FAISS Similarity Search**
@@ -330,7 +330,7 @@ relevant vector store.
 
 ```python
 
-\# Backend query processing
+# Backend query processing
 
 context_docs = pdf_vector_store.similarity_search(query_embedding, k=10)
 ```
@@ -624,15 +624,15 @@ loop.
 
 ```python
 
-\# On each upload, recreate empty store
+# On each upload, recreate empty store
 
 vector_store = FAISS.from_embeddings(
 
-text_embeddings=\[(\"\", np.zeros(DIM))\], \# A fresh index
+text_embeddings=[("", np.zeros(DIM))], # A fresh index
 
 embedding=embeddings_obj,
 
-metadatas=\[{\"type\": \"dummy\"}\] \# Empty metadata
+metadatas=[{"type": "dummy"}] # Empty metadata
 
 )
 ```
