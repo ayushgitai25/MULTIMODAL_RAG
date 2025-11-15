@@ -224,51 +224,51 @@ embedding dimension:
 
 ```python
 
-\# Text embeddings (CLIP) - 512 dimensions
+# Text embeddings (CLIP) - 512 dimensions
 
 pdf_vector_store = FAISS.from_embeddings(
 
-text_embeddings=\[(\"\", np.zeros(512))\], \# 512D text embeddings
+text_embeddings=[("", np.zeros(512))], # 512D text embeddings
 
 embedding=text_embeddings_obj,
 
-metadatas=\[{\"type\": \"dummy\"}\]
+metadatas=[{"type": "dummy"}]
 
 )
 
-\# Image embeddings (CLIP) - 512 dimensions
+# Image embeddings (CLIP) - 512 dimensions
 
 image_vector_store = FAISS.from_embeddings(
 
-text_embeddings=\[(\"\", np.zeros(512))\], \# 512D image embeddings
+text_embeddings=[("", np.zeros(512))], # 512D image embeddings
 
 embedding=text_embeddings_obj,
 
-metadatas=\[{\"type\": \"dummy\"}\]
+metadatas=[{"type": "dummy"}]
 
 )
 
-\# Audio index embeddings (Wav2Vec2) - 768 dimensions
+# Audio index embeddings (Wav2Vec2) - 768 dimensions
 
 audio_index_vector_store = FAISS.from_embeddings(
 
-text_embeddings=\[(\"\", np.zeros(768))\], \# 768D audio embeddings
+text_embeddings=[("", np.zeros(768))], # 768D audio embeddings
 
 embedding=audio_embeddings_obj,
 
-metadatas=\[{\"type\": \"dummy\"}\]
+metadatas=[{"type": "dummy"}]
 
 )
 
-\# Audio query embeddings (text from transcription) - 512 dimensions
+# Audio query embeddings (text from transcription) - 512 dimensions
 
 audio_query_vector_store = FAISS.from_embeddings(
 
-text_embeddings=\[(\"\", np.zeros(512))\], \# 512D text embeddings
+text_embeddings=[("", np.zeros(512))], # 512D text embeddings
 
 embedding=text_embeddings_obj,
 
-metadatas=\[{\"type\": \"dummy\"}\]
+metadatas=\[{"type": "dummy"}]
 
 )
 ```
