@@ -1,6 +1,7 @@
 import streamlit as st
 import requests
 import time
+import base64
 
 st.set_page_config(
     page_title="🎨 Multimodal RAG", 
@@ -91,6 +92,11 @@ st.markdown("""
     padding: 1rem;
     border-radius: 8px;
     border-left: 4px solid #dc3545;
+}
+.media-preview {
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    overflow: hidden;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -188,11 +194,13 @@ with col1:
                         resp = requests.post("http://localhost:8000/upload_image", files=files, timeout=60)
                         
                         if resp.ok:
+                            media_data = resp.json().get("media", {})
                             st.session_state.processed_files.add(uploaded_file_image.name)
                             st.session_state.uploaded_files[uploaded_file_image.name] = {
                                 "mode": "Image",
                                 "timestamp": time.time(),
-                                "filename": uploaded_file_image.name
+                                "filename": uploaded_file_image.name,
+                                "base64": media_data.get("base64", "")
                             }
                             st.success(f"✅ **{uploaded_file_image.name} processed successfully!**")
                             st.info(f"🖼️ File Size: {uploaded_file_image.size / 1024:.1f} KB | **Ready for visual queries!**")
@@ -230,7 +238,8 @@ with col1:
                             st.session_state.uploaded_files[uploaded_file_audio.name] = {
                                 "mode": "Audio",
                                 "timestamp": time.time(),
-                                "filename": uploaded_file_audio.name
+                                "filename": uploaded_file_audio.name,
+                                "base64": None  # Audio is too large for base64
                             }
                             st.success(f"✅ **{uploaded_file_audio.name} processed successfully!**")
                             st.info(f"🎵 File Size: {uploaded_file_audio.size / 1024:.1f} KB | **Ready for audio queries!**")
@@ -254,7 +263,6 @@ with col2:
     st.markdown('<div class="content-card">', unsafe_allow_html=True)
     st.markdown("### ❓ Ask Questions")
     
-    # Show current active mode and status
     if mode and st.session_state.processed_files:
         current_mode = mode
         current_file = list(st.session_state.processed_files)[-1]
@@ -270,7 +278,6 @@ with col2:
     else:
         st.warning("👆 **Please upload a file first** to enable querying")
     
-    # Query input (disabled if no mode selected)
     query = st.text_area(
         "💭 **Enter your question about the uploaded content:**",
         placeholder="Examples:\n• PDF: 'What are the main findings of this document?'\n• Image: 'What's happening in this picture?'\n• Audio: 'What was the main topic discussed?'",
@@ -279,7 +286,6 @@ with col2:
         help="Ask natural language questions about your uploaded file. The AI will search through the content to provide relevant answers."
     )
     
-    # Generate Answer button
     col_ask1, col_ask2 = st.columns([3, 1])
     with col_ask1:
         ask_button = st.button("🔍 **Generate AI Answer**", type="primary", use_container_width=True, disabled=not (query and mode))
@@ -291,11 +297,10 @@ with col2:
     
     st.markdown('</div>', unsafe_allow_html=True)
 
-# Results section (spans full width)
+# Results section (spans full width) - Enhanced with Media Display
 if ask_button and query and mode:
     result_container = st.container()
     with result_container:
-        # Progress indicator
         progress_bar = st.progress(0)
         status_text = st.empty()
         
@@ -303,7 +308,6 @@ if ask_button and query and mode:
         progress_bar.progress(30)
         
         try:
-            # Make query request
             progress_bar.progress(70)
             response = requests.post(
                 "http://localhost:8000/query", 
@@ -314,11 +318,10 @@ if ask_button and query and mode:
             
             result = response.json()
             
-            # Clear progress
             status_text.success("✅ **Answer generated successfully!**")
             progress_bar.empty()
             
-            # Enhanced Answer Display
+            # Answer Display
             st.markdown(f'''
             <div class="answer-card">
                 <h3 style="margin-top: 0; display: flex; align-items: center;">
@@ -333,54 +336,86 @@ if ask_button and query and mode:
             </div>
             ''', unsafe_allow_html=True)
             
-            # Display Media Associated with the Answer
-            st.markdown('<div class="media-card">', unsafe_allow_html=True)
-            st.markdown("### 🖼️ Related Media")
-            
+            # Media Display Section
             media = result.get("media", {})
             
-            # PDF Display
-            if media.get("type") == "pdf" and media.get("urls"):
-                pdf_url = media["urls"][0] if media["urls"] else ""
-                if pdf_url:
-                    st.markdown(f"**📄 Original PDF:**")
-                    st.markdown(f'<iframe src="{pdf_url}" width="700" height="500" style="border: 1px solid #ddd; border-radius: 8px;"></iframe>', unsafe_allow_html=True)
+            if media.get("type") == "pdf":
+                st.markdown('<div class="media-card">', unsafe_allow_html=True)
+                st.markdown("### 📄 Original Document")
+                
+                # Try to display PDF thumbnail or download link
+                pdf_filename = media.get("filename", "")
+                if pdf_filename:
+                    # Since we can't embed full PDF reliably, provide download option
+                    with open(f"data/{pdf_filename}", "rb") as pdf_file:
+                        pdf_bytes = pdf_file.read()
+                    st.download_button(
+                        label="📥 Download Original PDF",
+                        data=pdf_bytes,
+                        file_name=pdf_filename,
+                        mime="application/pdf",
+                        use_container_width=True
+                    )
+                else:
+                    st.info("PDF available for download via the button above.")
+                st.markdown('</div>', unsafe_allow_html=True)
             
-            # Image Display
-            if media.get("type") == "image" and media.get("urls"):
-                image_url = media["urls"][0] if media["urls"] else ""
-                if image_url:
-                    st.markdown(f"**🖼️ Original Image:**")
+            elif media.get("type") == "image":
+                st.markdown('<div class="media-card">', unsafe_allow_html=True)
+                st.markdown("### 🖼️ Original Image")
+                
+                # Try to display image directly
+                base64_data = media.get("base64", "")
+                if base64_data:
+                    image_data = base64.b64decode(base64_data)
+                    st.image(image_data, caption=f"Uploaded: {media.get('filename', 'Image')}", use_column_width=True)
+                else:
+                    st.warning("Image data not available for direct display.")
+                st.markdown('</div>', unsafe_allow_html=True)
+            
+            elif media.get("type") == "audio":
+                st.markdown('<div class="media-card">', unsafe_allow_html=True)
+                st.markdown("### 🎵 Original Audio")
+                
+                # Display download link for audio since we don't have base64
+                audio_filename = media.get("filename", "")
+                if audio_filename:
                     try:
-                        # Load and display image from backend
-                        response = requests.get(image_url)
-                        if response.status_code == 200:
-                            st.image(response.content, use_column_width=True, caption=f"Uploaded: {os.path.basename(image_url)}")
-                        else:
-                            st.warning("Could not load image from backend. Please ensure the file is available.")
-                    except Exception as e:
-                        st.error(f"Error loading image: {e}")
-            
-            # Audio Display
-            if media.get("type") == "audio" and media.get("urls"):
-                audio_url = media["urls"][0] if media["urls"] else ""
-                if audio_url:
-                    st.markdown(f"**🎵 Original Audio:**")
-                    # Determine format for audio player
-                    audio_format = "audio/wav"
-                    if audio_url.endswith(".mp3"):
-                        audio_format = "audio/mpeg"
-                    elif audio_url.endswith(".m4a"):
-                        audio_format = "audio/mp4"
-                    st.audio(audio_url, format=audio_format)
-            
-            st.markdown('</div>', unsafe_allow_html=True)
+                        with open(f"data/{audio_filename}", "rb") as audio_file:
+                            audio_bytes = audio_file.read()
+                        
+                        # Determine audio format
+                        audio_format = "audio/wav"
+                        if audio_filename.endswith(".mp3"):
+                            audio_format = "audio/mpeg"
+                        elif audio_filename.endswith(".m4a"):
+                            audio_format = "audio/mp4"
+                        
+                        st.audio(audio_bytes, format=audio_format)
+                        
+                        # Also provide download
+                        st.download_button(
+                            label="📥 Download Audio File",
+                            data=audio_bytes,
+                            file_name=audio_filename,
+                            mime=audio_format,
+                            use_container_width=True
+                        )
+                    except FileNotFoundError:
+                        st.warning("Audio file not found. It may have been deleted or moved.")
+                else:
+                    st.info("Audio file available for download via the button above.")
+                st.markdown('</div>', unsafe_allow_html=True)
             
             # Context/Retrieved Information
             context = result.get("context", None)
             if context:
                 context_items = context if isinstance(context, list) else [context]
-                st.markdown(f'<div class="context-card"><h4 style="margin: 0 0 1rem 0;">📚 **Retrieved Context** ({len([c for c in context_items if c])} sources found)</h4></div>', unsafe_allow_html=True)
+                st.markdown(f'''
+                <div class="context-card">
+                    <h4 style="margin: 0 0 1rem 0;">📚 **Retrieved Context** ({len([c for c in context_items if c])} sources found)</h4>
+                </div>
+                ''', unsafe_allow_html=True)
                 
                 for idx, ctx in enumerate(context_items):
                     with st.expander(f"📖 Context {idx+1}: {mode} Source", expanded=(idx == 0)):
@@ -427,8 +462,8 @@ if not st.session_state.processed_files:
     
     **What each mode does:**
     - 📄 **PDF Analysis**: Extracts text and enables document Q&A
-    - 🖼️ **Image Understanding**: Analyzes visual content and describes scenes  
-    - 🎵 **Audio Processing**: Transcribes speech and answers about conversations (WAV, MP3, M4A supported)
+    - 🖼️ **Image Understanding**: Analyzes visual content and displays images with answers  
+    - 🎵 **Audio Processing**: Transcribes speech and plays audio alongside answers
     
     **Example Questions:**
     - *PDF*: "What are the key recommendations in this report?"
@@ -457,7 +492,7 @@ if not st.session_state.processed_files:
         st.markdown("""
         <div style="background: linear-gradient(135deg, #e8f5e8, #c8e6c9); padding: 1rem; border-radius: 10px; text-align: center;">
             <h4 style="color: #2e7d32; margin-top: 0;">🎵 Speech Analysis</h4>
-            <p style="color: #1b5e20;">Process interviews, meetings, voice notes (WAV/MP3/M4A)</p>
+            <p style="color: #1b5e20;">Process interviews, meetings, voice notes</p>
         </div>
         """, unsafe_allow_html=True)
     
@@ -498,7 +533,7 @@ st.markdown("""
             🚀 Deployed on Hugging Face Spaces
         </p>
         <p style="margin: 0.5rem 0 0 0; font-size: 0.9em; opacity: 0.7;">
-            © 2025 | Advanced AI Content Analysis Assistant | Media integration with RAG context
+            © 2025 | Advanced AI Content Analysis Assistant | Media Integration with RAG Context
         </p>
     </div>
 </div>
