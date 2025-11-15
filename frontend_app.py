@@ -91,12 +91,6 @@ st.markdown("""
     border-radius: 8px;
     border-left: 4px solid #dc3545;
 }
-/* Ensure smooth image display */
-img {
-    display: block !important;
-    max-width: 100%;
-    transition: none;
-}
 </style>
 """, unsafe_allow_html=True)
 
@@ -107,10 +101,6 @@ if 'processed_files' not in st.session_state:
     st.session_state.processed_files = set()
 if 'queries' not in st.session_state:
     st.session_state.queries = []
-if 'current_mode' not in st.session_state:
-    st.session_state.current_mode = None
-if 'current_filename' not in st.session_state:
-    st.session_state.current_filename = None
 
 # Main Header
 st.markdown("""
@@ -151,10 +141,6 @@ with col1:
         )
         
         if uploaded_file_pdf:
-            # Store current mode and filename
-            st.session_state.current_mode = "PDF"
-            st.session_state.current_filename = uploaded_file_pdf.name
-            
             # Auto-process PDF
             if uploaded_file_pdf.name not in st.session_state.processed_files:
                 with st.spinner(f"🔄 Processing {uploaded_file_pdf.name}..."):
@@ -166,21 +152,22 @@ with col1:
                             st.session_state.processed_files.add(uploaded_file_pdf.name)
                             st.session_state.uploaded_files[uploaded_file_pdf.name] = {
                                 "mode": "PDF",
-                                "timestamp": time.time(),
-                                "filename": uploaded_file_pdf.name
+                                "timestamp": time.time()
                             }
                             st.success(f"✅ **{uploaded_file_pdf.name} processed successfully!**")
                             st.info(f"📊 File Size: {uploaded_file_pdf.size / 1024:.1f} KB | **Ready for querying!**")
+                            uploaded_file = uploaded_file_pdf
                             mode = "PDF"
                         else:
                             st.error(f"❌ Failed to process PDF: {resp.text}")
                     except Exception as e:
                         st.error(f"⚠️ Processing error: {str(e)}")
             
-            # Show file status if already processed
-            elif uploaded_file_pdf.name in st.session_state.processed_files:
-                st.markdown(f'<div class="status-success">✅ **{uploaded_file_pdf.name} already processed!**</div>', unsafe_allow_html=True)
+            # Show file status
+            if uploaded_file_pdf.name in st.session_state.processed_files:
+                st.markdown(f'<div class="status-success">✅ **{uploaded_file_pdf.name} processed successfully!**</div>', unsafe_allow_html=True)
                 st.info(f"📊 File Size: {uploaded_file_pdf.size / 1024:.1f} KB | **Ready for querying!**")
+                uploaded_file = uploaded_file_pdf
                 mode = "PDF"
     
     with tab2:
@@ -193,10 +180,6 @@ with col1:
         )
         
         if uploaded_file_image:
-            # Store current mode and filename
-            st.session_state.current_mode = "Image"
-            st.session_state.current_filename = uploaded_file_image.name
-            
             # Auto-process Image
             if uploaded_file_image.name not in st.session_state.processed_files:
                 with st.spinner(f"🔄 Processing {uploaded_file_image.name}..."):
@@ -208,37 +191,34 @@ with col1:
                             st.session_state.processed_files.add(uploaded_file_image.name)
                             st.session_state.uploaded_files[uploaded_file_image.name] = {
                                 "mode": "Image",
-                                "timestamp": time.time(),
-                                "filename": uploaded_file_image.name
+                                "timestamp": time.time()
                             }
                             st.success(f"✅ **{uploaded_file_image.name} processed successfully!**")
                             st.info(f"🖼️ File Size: {uploaded_file_image.size / 1024:.1f} KB | **Ready for visual queries!**")
+                            uploaded_file = uploaded_file_image
                             mode = "Image"
                         else:
                             st.error(f"❌ Failed to process image: {resp.text}")
                     except Exception as e:
                         st.error(f"⚠️ Processing error: {str(e)}")
             
-            # Show file status if already processed
-            elif uploaded_file_image.name in st.session_state.processed_files:
-                st.markdown(f'<div class="status-success">✅ **{uploaded_file_image.name} already processed!**</div>', unsafe_allow_html=True)
+            # Show file status
+            if uploaded_file_image.name in st.session_state.processed_files:
+                st.markdown(f'<div class="status-success">✅ **{uploaded_file_image.name} processed successfully!**</div>', unsafe_allow_html=True)
                 st.info(f"🖼️ File Size: {uploaded_file_image.size / 1024:.1f} KB | **Ready for visual queries!**")
+                uploaded_file = uploaded_file_image
                 mode = "Image"
     
     with tab3:
         st.markdown("**Upload Audio for Speech Analysis**")
         uploaded_file_audio = st.file_uploader(
             "🎵 Choose an audio file (max 25MB)",
-            type=["wav", "mp3", "m4a"],
+            type=["wav", "mp3", "m4a"],  # Full audio format support
             key="audio_uploader",
             help="Upload audio files (WAV, MP3, M4A) for speech-to-text transcription and semantic analysis"
         )
         
         if uploaded_file_audio:
-            # Store current mode and filename
-            st.session_state.current_mode = "Audio"
-            st.session_state.current_filename = uploaded_file_audio.name
-            
             # Auto-process Audio
             if uploaded_file_audio.name not in st.session_state.processed_files:
                 with st.spinner(f"🔄 Processing {uploaded_file_audio.name}... This may take longer for audio files."):
@@ -250,21 +230,22 @@ with col1:
                             st.session_state.processed_files.add(uploaded_file_audio.name)
                             st.session_state.uploaded_files[uploaded_file_audio.name] = {
                                 "mode": "Audio",
-                                "timestamp": time.time(),
-                                "filename": uploaded_file_audio.name
+                                "timestamp": time.time()
                             }
                             st.success(f"✅ **{uploaded_file_audio.name} processed successfully!**")
                             st.info(f"🎵 File Size: {uploaded_file_audio.size / 1024:.1f} KB | **Ready for audio queries!**")
+                            uploaded_file = uploaded_file_audio
                             mode = "Audio"
                         else:
                             st.error(f"❌ Failed to process audio: {resp.text}")
                     except Exception as e:
                         st.error(f"⚠️ Processing error: {str(e)}")
             
-            # Show file status if already processed
-            elif uploaded_file_audio.name in st.session_state.processed_files:
-                st.markdown(f'<div class="status-success">✅ **{uploaded_file_audio.name} already processed!**</div>', unsafe_allow_html=True)
+            # Show file status
+            if uploaded_file_audio.name in st.session_state.processed_files:
+                st.markdown(f'<div class="status-success">✅ **{uploaded_file_audio.name} processed successfully!**</div>', unsafe_allow_html=True)
                 st.info(f"🎵 File Size: {uploaded_file_audio.size / 1024:.1f} KB | **Ready for audio queries!**")
+                uploaded_file = uploaded_file_audio
                 mode = "Audio"
     
     st.markdown('</div>', unsafe_allow_html=True)
@@ -276,10 +257,8 @@ with col2:
     
     # Show current active mode and status
     if mode and st.session_state.processed_files:
-        st.session_state.current_mode = mode
-        st.session_state.current_filename = list(st.session_state.processed_files)[-1]
         current_mode = mode
-        current_file = st.session_state.current_filename
+        current_file = list(st.session_state.processed_files)[-1]
         st.markdown(f"**Current Mode:** {current_mode}")
         st.markdown(f'<div class="status-success">📁 **{current_file} loaded** ({current_mode} mode)</div>', unsafe_allow_html=True)
         
@@ -289,8 +268,7 @@ with col2:
                                 key=lambda x: x[1]['timestamp'], reverse=True)[:3]
             with st.expander(f"📁 Recent Files ({len(recent_files)})", expanded=False):
                 for filename, info in recent_files:
-                    mode_icon = "📄" if info["mode"] == "PDF" else "🖼️" if info["mode"] == "Image" else "🎵"
-                    st.write(f"{mode_icon} **{filename}** ({info['mode']})")
+                    st.write(f"• **{info['mode']}**: {filename}")
     else:
         st.warning("👆 **Please upload a file first** to enable querying")
     
@@ -448,7 +426,7 @@ if not st.session_state.processed_files:
         st.markdown("""
         <div style="background: linear-gradient(135deg, #e8f5e8, #c8e6c9); padding: 1rem; border-radius: 10px; text-align: center;">
             <h4 style="color: #2e7d32; margin-top: 0;">🎵 Speech Analysis</h4>
-            <p style="color: #1b5e20;">Process interviews, meetings, voice notes</p>
+            <p style="color: #1b5e20;">Process interviews, meetings, voice notes (WAV/MP3/M4A)</p>
         </div>
         """, unsafe_allow_html=True)
     
@@ -473,8 +451,6 @@ if len(st.session_state.processed_files) > 1:
             st.session_state.processed_files.clear()
             st.session_state.uploaded_files.clear()
             st.session_state.queries.clear()
-            st.session_state.current_mode = None
-            st.session_state.current_filename = None
             st.rerun()
         st.info("**Note:** Clearing files removes them from memory. Upload new files to query different content.")
     
