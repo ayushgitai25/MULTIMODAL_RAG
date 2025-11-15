@@ -1,4 +1,4 @@
-**Complete Technical Breakdown: Multimodal RAG System**
+# **Complete Technical Breakdown: Multimodal RAG System**
 
 **\[Expanded Definition\] Multimodal RAG:** This system\'s name breaks
 down as:
