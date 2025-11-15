@@ -34,7 +34,7 @@ Here's a detailed, step-by-step explanation of how this multimodal RAG system wo
 # 1. Embedding Creation Process
 [Expanded Definition] Embedding: An embedding is a vector—a long list of numbers—that represents the semantic meaning of a piece of data (like text, an image, or audio). The AI model creates these vectors in a way that similar concepts (e.g., an image of a dog and the text "a furry pet") are placed close together in a high-dimensional mathematical space.
 
-Step 1: User Uploads Data
+## Step 1: User Uploads Data
 User uploads a file through the Streamlit UI.
 
 [Expanded Definition] Streamlit: A Python library used to quickly build and deploy simple, interactive web applications (like the one you use) without needing complex web development knowledge.
@@ -45,7 +45,7 @@ The file is saved temporarily to the backend via a POST request to /upload_pdf, 
 
 The backend validates the file type and begins processing it immediately.
 
-Step 2: Data Type Specific Processing
+## Step 2: Data Type Specific Processing
 A. PDF Processing (in processor.py)
 Python
 
