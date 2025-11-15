@@ -19,6 +19,30 @@ usage, dimension handling, and the full processing pipeline.
 
 **Architecture Overview Diagram**
 
+```text
+┌─────────────────────────────────────────────────────────────────────────┐
+│                          MULTIMODAL RAG SYSTEM                           │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐               │
+│  │    INPUT      │    │  PROCESSING  │    │   OUTPUT      │               │
+│  │  (User)       │───▶│  (Backend)   │───▶│  (LLM Answer) │               │
+│  │              │    │              │    │               │               │
+│  │  Upload:     │    │  1. Extract   │    │   Query LLM   │               │
+│  │  - PDF       │    │  2. Embed    │    │   w/ Context  │               │
+│  │  - Image     │    │  3. Store    │    │   (Gemini)    │               │
+│  │  - Audio     │    │              │    │               │               │
+│  └──────────────┘    └──────────────┘    └──────────────┘               │
+└─────────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────┐
+│        STORAGE LAYER          │
+│  ┌─────────────┐ ┌─────────┐ │
+│  │ PDF Vector  │ │Image    │ │Audio    │
+│  │ Store (512D)│ │Store    │ │Stores   │
+│  │             │ │(512D)   │ │(768D+   │
+│  │             │ │         │ │512D)    │
+│  └─────────────┘ └─────────┘ │└─────────┘│
+└──────────────────────────────┘
+```
+
 **1. Embedding Creation Process**
 
 **\[Expanded Definition\] Embedding:** An **embedding** is a vector---a
