@@ -1,9 +1,6 @@
 import streamlit as st
 import requests
 import time
-import base64
-import io
-from typing import Dict, Optional
 
 st.set_page_config(
     page_title="🎨 Multimodal RAG", 
@@ -55,13 +52,6 @@ st.markdown("""
     margin: 1rem 0;
     box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
 }
-.media-card {
-    background: white;
-    padding: 1.5rem;
-    border-radius: 15px;
-    margin: 1rem 0;
-    box-shadow: 0 5px 20px rgba(0,0,0,0.1);
-}
 .context-card {
     background: #fff9e6;
     padding: 1.5rem;
@@ -83,6 +73,12 @@ st.markdown("""
     font-style: normal;
     z-index: 1000;
 }
+.status-processing {
+    background: #fff3cd;
+    padding: 1rem;
+    border-radius: 8px;
+    border-left: 4px solid #ffc107;
+}
 .status-success {
     background: #d4edda;
     padding: 1rem;
@@ -95,10 +91,11 @@ st.markdown("""
     border-radius: 8px;
     border-left: 4px solid #dc3545;
 }
-/* Prevent image flickering by ensuring images are displayed consistently */
+/* Ensure smooth image display */
 img {
     display: block !important;
     max-width: 100%;
+    transition: none;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -114,23 +111,6 @@ if 'current_mode' not in st.session_state:
     st.session_state.current_mode = None
 if 'current_filename' not in st.session_state:
     st.session_state.current_filename = None
-
-# Cache for media files to prevent reloading
-@st.cache_data(ttl=300)  # Cache for 5 minutes
-def load_image_from_response(base64_data: str) -> bytes:
-    """Cache loaded images to prevent flickering."""
-    if base64_data:
-        return base64.b64decode(base64_data)
-    return None
-
-@st.cache_data(ttl=300)
-def load_audio_bytes(filename: str) -> Optional[bytes]:
-    """Cache audio bytes to prevent reloading."""
-    try:
-        with open(f"data/{filename}", "rb") as f:
-            return f.read()
-    except FileNotFoundError:
-        return None
 
 # Main Header
 st.markdown("""
@@ -155,6 +135,7 @@ with col1:
     st.markdown('<div class="content-card">', unsafe_allow_html=True)
     st.markdown("### 🚀 File Upload")
     
+    # Tabbed interface for uploads
     tab1, tab2, tab3 = st.tabs(["📄 PDF Analysis", "🖼️ Image Understanding", "🎵 Audio Processing"])
     
     uploaded_file = None
@@ -170,10 +151,11 @@ with col1:
         )
         
         if uploaded_file_pdf:
-            # Store file info before processing
-            st.session_state.current_filename = uploaded_file_pdf.name
+            # Store current mode and filename
             st.session_state.current_mode = "PDF"
+            st.session_state.current_filename = uploaded_file_pdf.name
             
+            # Auto-process PDF
             if uploaded_file_pdf.name not in st.session_state.processed_files:
                 with st.spinner(f"🔄 Processing {uploaded_file_pdf.name}..."):
                     try:
@@ -211,10 +193,11 @@ with col1:
         )
         
         if uploaded_file_image:
-            # Store file info before processing
-            st.session_state.current_filename = uploaded_file_image.name
+            # Store current mode and filename
             st.session_state.current_mode = "Image"
+            st.session_state.current_filename = uploaded_file_image.name
             
+            # Auto-process Image
             if uploaded_file_image.name not in st.session_state.processed_files:
                 with st.spinner(f"🔄 Processing {uploaded_file_image.name}..."):
                     try:
@@ -252,10 +235,11 @@ with col1:
         )
         
         if uploaded_file_audio:
-            # Store file info before processing
-            st.session_state.current_filename = uploaded_file_audio.name
+            # Store current mode and filename
             st.session_state.current_mode = "Audio"
+            st.session_state.current_filename = uploaded_file_audio.name
             
+            # Auto-process Audio
             if uploaded_file_audio.name not in st.session_state.processed_files:
                 with st.spinner(f"🔄 Processing {uploaded_file_audio.name}... This may take longer for audio files."):
                     try:
@@ -305,7 +289,8 @@ with col2:
                                 key=lambda x: x[1]['timestamp'], reverse=True)[:3]
             with st.expander(f"📁 Recent Files ({len(recent_files)})", expanded=False):
                 for filename, info in recent_files:
-                    st.write(f"• **{info['mode']}**: {filename}")
+                    mode_icon = "📄" if info["mode"] == "PDF" else "🖼️" if info["mode"] == "Image" else "🎵"
+                    st.write(f"{mode_icon} **{filename}** ({info['mode']})")
     else:
         st.warning("👆 **Please upload a file first** to enable querying")
     
@@ -408,7 +393,7 @@ if ask_button and query and mode:
             
             if len(st.session_state.queries) > 1:
                 with st.expander(f"📋 Recent Queries ({len(st.session_state.queries)})", expanded=False):
-                    for i, q in enumerate(st.session_state.queries[-3:]):
+                    for i, q in enumerate(st.session_state.queries[-3:]):  # Last 3
                         st.markdown(f"**Q{i+1}:** *{q['mode']}* - {q['query'][:100]}{'...' if len(q['query']) > 100 else ''}")
             
         except requests.exceptions.Timeout:
@@ -463,7 +448,7 @@ if not st.session_state.processed_files:
         st.markdown("""
         <div style="background: linear-gradient(135deg, #e8f5e8, #c8e6c9); padding: 1rem; border-radius: 10px; text-align: center;">
             <h4 style="color: #2e7d32; margin-top: 0;">🎵 Speech Analysis</h4>
-            <p style="color: #1b5e20;">Process interviews, meetings, voice notes (WAV/MP3/M4A)</p>
+            <p style="color: #1b5e20;">Process interviews, meetings, voice notes</p>
         </div>
         """, unsafe_allow_html=True)
     
@@ -505,7 +490,7 @@ st.markdown("""
             🚀 Deployed on Hugging Face Spaces
         </p>
         <p style="margin: 0.5rem 0 0 0; font-size: 0.9em; opacity: 0.7;">
-            © 2025 | Advanced AI Content Analysis Assistant | Optimized for smooth media display
+            © 2025 | Advanced AI Content Analysis Assistant | Stable & Optimized
         </p>
     </div>
 </div>
