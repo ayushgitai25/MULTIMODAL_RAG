@@ -209,25 +209,33 @@ class QueryRequest(BaseModel):
 async def query(request: QueryRequest):
     logger.info(f"Received query: {request.query} for mode: {request.mode}")
 
+    media = {}  # To hold media URLs
+    
     if request.mode == "pdf":
         if len(pdf_vector_store.index_to_docstore_id) <= 1:
             raise HTTPException(status_code=400, detail="No PDF uploaded yet. Please upload a PDF first.")
         context_docs = pdf_vector_store.similarity_search(request.query, k=10)
         content = create_multimodal_message(request.query, context_docs, {})
+        # Example: provide the path to uploaded PDF (adjust as per your logic)
+        media["pdf_url"] = f"http://localhost:8000/data/{your_pdf_filename_here}"
+    
     elif request.mode == "image":
         if len(image_vector_store.index_to_docstore_id) <= 1:
             raise HTTPException(status_code=400, detail="No image uploaded yet. Please upload an image first.")
         context_docs = image_vector_store.similarity_search(request.query, k=10)
         content = create_multimodal_message(request.query, context_docs, image_data_store)
+        media["image_urls"] = [f"http://localhost:8000/data/{img}" for img in your_list_of_images_here]
+    
     elif request.mode == "audio":
         if len(audio_query_vector_store.index_to_docstore_id) <= 1:
             raise HTTPException(status_code=400, detail="No audio uploaded yet. Please upload an audio file first.")
         context_docs = audio_query_vector_store.similarity_search(request.query, k=10)
         content = create_multimodal_message(request.query, context_docs, {})
+        media["audio_url"] = f"http://localhost:8000/data/{your_audio_filename_here}"
+    
     else:
         raise HTTPException(status_code=400, detail="Invalid mode. Use 'pdf', 'image', or 'audio'.")
-
+    
     answer = query_llm(llm, content)
     logger.info(f"Generated answer: {answer}")
-    return {"answer": answer}
-
+    return {"answer": answer, "media": media, "context": context_docs}
