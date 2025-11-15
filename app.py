@@ -26,6 +26,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from fastapi.staticfiles import StaticFiles
+app.mount("/data", StaticFiles(directory="data"), name="data")
+
 os.makedirs("data", exist_ok=True)
 
 transcriber = pipeline("automatic-speech-recognition", model="facebook/wav2vec2-base-960h")
@@ -227,3 +230,4 @@ async def query(request: QueryRequest):
     answer = query_llm(llm, content)
     logger.info(f"Generated answer: {answer}")
     return {"answer": answer}
+
