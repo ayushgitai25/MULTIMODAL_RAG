@@ -75,10 +75,10 @@ uploaded file.
 
 **A. PDF Processing (in processor.py)**
 
-Python
+```python
 
 def process_pdf(pdf_path):
-
+```
 - **Library:** Uses **PyMuPDF (fitz)** to parse PDF documents.
 
 **\[Expanded Definition\] PyMuPDF (fitz):** A high-performance Python
@@ -119,10 +119,10 @@ in a data message.
 
 **B. Image Processing**
 
-Python
+```python
 
 def embed_image(image_data):
-
+```
 - **Model:** **OpenAI CLIP (openai/clip-vit-base-patch32)**
 
 - **Process:**
@@ -163,10 +163,10 @@ not their magnitude (which can be arbitrary).
 
 **C. Audio Processing**
 
-Python
+```python
 
 def embed_audio(audio_path):
-
+```
 - **Preprocessing:**
 
   1.  librosa.load(audio_path, sr=16000): Loads the audio file using the
@@ -222,7 +222,7 @@ this *extremely* fast, acting as the \"memory\" for the RAG system.
 Each modality has a separate FAISS index to handle its specific
 embedding dimension:
 
-Python
+```python
 
 \# Text embeddings (CLIP) - 512 dimensions
 
@@ -271,7 +271,7 @@ embedding=text_embeddings_obj,
 metadatas=\[{\"type\": \"dummy\"}\]
 
 )
-
+```
 **What FAISS Stores**
 
 - **Vectors:** The normalized embedding arrays (512D for text/image,
@@ -291,7 +291,7 @@ metadatas=\[{\"type\": \"dummy\"}\]
 
 **Storage Process**
 
-Python
+```python
 
 \# Example: Adding embeddings to FAISS
 
@@ -303,7 +303,7 @@ pdf_vector_store.add_embeddings(
 metadatas=\[doc.metadata for doc in docs\] \# Store metadata alongside
 
 )
-
+```
 **Key Point:** FAISS doesn\'t store the actual PDF/image/audio files. It
 stores their **semantic representations** as vectors, which allows for
 near-instantaneous search based on *meaning*, not just keywords.
@@ -316,34 +316,34 @@ When a user asks, \"What are the main findings?\" in PDF mode, the
 system *first* embeds the user\'s query using the *exact same* CLIP text
 model.
 
-Python
+```python
 
 \# When user asks \"What are the main findings?\" in PDF mode
 
 query_embedding = embed_text(\"What are the main findings?\") \# 512D
 vector
-
+```
 **Step 2: FAISS Similarity Search**
 
 The backend then takes this 512D query vector and uses it to search the
 relevant vector store.
 
-Python
+```python
 
 \# Backend query processing
 
 context_docs = pdf_vector_store.similarity_search(query_embedding, k=10)
-
+```
 - **FAISS Algorithm:** Uses **cosine similarity** (or its mathematical
   equivalent, the dot product on normalized vectors) to compare the
   query vector against *all* stored vectors in the index.
 
 - **Cosine Similarity Formula:**
 
-Plaintext
+```Plaintext
 
 similarity(A, B) = (A · B) / (\|\|A\|\| × \|\|B\|\|)
-
+```
 **\[Expanded Definition\] Cosine Similarity:** This formula essentially
 measures the *angle* between two vectors in high-dimensional space.
 
@@ -511,7 +511,7 @@ A single FAISS index *must* have a fixed dimension. You cannot store
 512D and 768D vectors in the same index. This is why the system
 *requires* separate vector stores:
 
-Python
+```python
 
 \# PDF and Image use 512D (CLIP text/image embeddings)
 
@@ -520,7 +520,7 @@ FAISS.from_embeddings(text_embeddings=\[(\"\", np.zeros(512))\], \...)
 \# Audio Index uses 768D (Wav2Vec2 raw audio embeddings)
 
 FAISS.from_embeddings(text_embeddings=\[(\"\", np.zeros(768))\], \...)
-
+```
 **The Unified Search Space**
 
 This is the most \"genius\" part of the design:
@@ -622,7 +622,7 @@ loop.
 
 **Why Reset Vector Stores on Each Upload?**
 
-Python
+```python
 
 \# On each upload, recreate empty store
 
@@ -635,7 +635,7 @@ embedding=embeddings_obj,
 metadatas=\[{\"type\": \"dummy\"}\] \# Empty metadata
 
 )
-
+```
 - **Prevents Stale Data:** This ensures that data from a previously
   uploaded PDF doesn\'t \"contaminate\" the search results for a new
   PDF.
