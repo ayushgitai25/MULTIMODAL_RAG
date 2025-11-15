@@ -2,6 +2,8 @@ import streamlit as st
 import requests
 import time
 import base64
+import io
+from typing import Dict, Optional
 
 st.set_page_config(
     page_title="🎨 Multimodal RAG", 
@@ -93,10 +95,10 @@ st.markdown("""
     border-radius: 8px;
     border-left: 4px solid #dc3545;
 }
-.media-preview {
-    border: 2px solid #e0e0e0;
-    border-radius: 8px;
-    overflow: hidden;
+/* Prevent image flickering by ensuring images are displayed consistently */
+img {
+    display: block !important;
+    max-width: 100%;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -108,8 +110,27 @@ if 'processed_files' not in st.session_state:
     st.session_state.processed_files = set()
 if 'queries' not in st.session_state:
     st.session_state.queries = []
-if 'current_media' not in st.session_state:
-    st.session_state.current_media = {}
+if 'current_mode' not in st.session_state:
+    st.session_state.current_mode = None
+if 'current_filename' not in st.session_state:
+    st.session_state.current_filename = None
+
+# Cache for media files to prevent reloading
+@st.cache_data(ttl=300)  # Cache for 5 minutes
+def load_image_from_response(base64_data: str) -> bytes:
+    """Cache loaded images to prevent flickering."""
+    if base64_data:
+        return base64.b64decode(base64_data)
+    return None
+
+@st.cache_data(ttl=300)
+def load_audio_bytes(filename: str) -> Optional[bytes]:
+    """Cache audio bytes to prevent reloading."""
+    try:
+        with open(f"data/{filename}", "rb") as f:
+            return f.read()
+    except FileNotFoundError:
+        return None
 
 # Main Header
 st.markdown("""
@@ -149,6 +170,10 @@ with col1:
         )
         
         if uploaded_file_pdf:
+            # Store file info before processing
+            st.session_state.current_filename = uploaded_file_pdf.name
+            st.session_state.current_mode = "PDF"
+            
             if uploaded_file_pdf.name not in st.session_state.processed_files:
                 with st.spinner(f"🔄 Processing {uploaded_file_pdf.name}..."):
                     try:
@@ -164,17 +189,16 @@ with col1:
                             }
                             st.success(f"✅ **{uploaded_file_pdf.name} processed successfully!**")
                             st.info(f"📊 File Size: {uploaded_file_pdf.size / 1024:.1f} KB | **Ready for querying!**")
-                            uploaded_file = uploaded_file_pdf
                             mode = "PDF"
                         else:
                             st.error(f"❌ Failed to process PDF: {resp.text}")
                     except Exception as e:
                         st.error(f"⚠️ Processing error: {str(e)}")
             
+            # Show file status if already processed
             elif uploaded_file_pdf.name in st.session_state.processed_files:
                 st.markdown(f'<div class="status-success">✅ **{uploaded_file_pdf.name} already processed!**</div>', unsafe_allow_html=True)
                 st.info(f"📊 File Size: {uploaded_file_pdf.size / 1024:.1f} KB | **Ready for querying!**")
-                uploaded_file = uploaded_file_pdf
                 mode = "PDF"
     
     with tab2:
@@ -187,6 +211,10 @@ with col1:
         )
         
         if uploaded_file_image:
+            # Store file info before processing
+            st.session_state.current_filename = uploaded_file_image.name
+            st.session_state.current_mode = "Image"
+            
             if uploaded_file_image.name not in st.session_state.processed_files:
                 with st.spinner(f"🔄 Processing {uploaded_file_image.name}..."):
                     try:
@@ -194,27 +222,24 @@ with col1:
                         resp = requests.post("http://localhost:8000/upload_image", files=files, timeout=60)
                         
                         if resp.ok:
-                            media_data = resp.json().get("media", {})
                             st.session_state.processed_files.add(uploaded_file_image.name)
                             st.session_state.uploaded_files[uploaded_file_image.name] = {
                                 "mode": "Image",
                                 "timestamp": time.time(),
-                                "filename": uploaded_file_image.name,
-                                "base64": media_data.get("base64", "")
+                                "filename": uploaded_file_image.name
                             }
                             st.success(f"✅ **{uploaded_file_image.name} processed successfully!**")
                             st.info(f"🖼️ File Size: {uploaded_file_image.size / 1024:.1f} KB | **Ready for visual queries!**")
-                            uploaded_file = uploaded_file_image
                             mode = "Image"
                         else:
                             st.error(f"❌ Failed to process image: {resp.text}")
                     except Exception as e:
                         st.error(f"⚠️ Processing error: {str(e)}")
             
+            # Show file status if already processed
             elif uploaded_file_image.name in st.session_state.processed_files:
                 st.markdown(f'<div class="status-success">✅ **{uploaded_file_image.name} already processed!**</div>', unsafe_allow_html=True)
                 st.info(f"🖼️ File Size: {uploaded_file_image.size / 1024:.1f} KB | **Ready for visual queries!**")
-                uploaded_file = uploaded_file_image
                 mode = "Image"
     
     with tab3:
@@ -227,6 +252,10 @@ with col1:
         )
         
         if uploaded_file_audio:
+            # Store file info before processing
+            st.session_state.current_filename = uploaded_file_audio.name
+            st.session_state.current_mode = "Audio"
+            
             if uploaded_file_audio.name not in st.session_state.processed_files:
                 with st.spinner(f"🔄 Processing {uploaded_file_audio.name}... This may take longer for audio files."):
                     try:
@@ -238,22 +267,20 @@ with col1:
                             st.session_state.uploaded_files[uploaded_file_audio.name] = {
                                 "mode": "Audio",
                                 "timestamp": time.time(),
-                                "filename": uploaded_file_audio.name,
-                                "base64": None  # Audio is too large for base64
+                                "filename": uploaded_file_audio.name
                             }
                             st.success(f"✅ **{uploaded_file_audio.name} processed successfully!**")
                             st.info(f"🎵 File Size: {uploaded_file_audio.size / 1024:.1f} KB | **Ready for audio queries!**")
-                            uploaded_file = uploaded_file_audio
                             mode = "Audio"
                         else:
                             st.error(f"❌ Failed to process audio: {resp.text}")
                     except Exception as e:
                         st.error(f"⚠️ Processing error: {str(e)}")
             
+            # Show file status if already processed
             elif uploaded_file_audio.name in st.session_state.processed_files:
                 st.markdown(f'<div class="status-success">✅ **{uploaded_file_audio.name} already processed!**</div>', unsafe_allow_html=True)
                 st.info(f"🎵 File Size: {uploaded_file_audio.size / 1024:.1f} KB | **Ready for audio queries!**")
-                uploaded_file = uploaded_file_audio
                 mode = "Audio"
     
     st.markdown('</div>', unsafe_allow_html=True)
@@ -263,12 +290,16 @@ with col2:
     st.markdown('<div class="content-card">', unsafe_allow_html=True)
     st.markdown("### ❓ Ask Questions")
     
+    # Show current active mode and status
     if mode and st.session_state.processed_files:
+        st.session_state.current_mode = mode
+        st.session_state.current_filename = list(st.session_state.processed_files)[-1]
         current_mode = mode
-        current_file = list(st.session_state.processed_files)[-1]
+        current_file = st.session_state.current_filename
         st.markdown(f"**Current Mode:** {current_mode}")
         st.markdown(f'<div class="status-success">📁 **{current_file} loaded** ({current_mode} mode)</div>', unsafe_allow_html=True)
         
+        # Show recent files if multiple
         if len(st.session_state.processed_files) > 1:
             recent_files = sorted(st.session_state.uploaded_files.items(), 
                                 key=lambda x: x[1]['timestamp'], reverse=True)[:3]
@@ -278,6 +309,7 @@ with col2:
     else:
         st.warning("👆 **Please upload a file first** to enable querying")
     
+    # Query input (disabled if no mode selected)
     query = st.text_area(
         "💭 **Enter your question about the uploaded content:**",
         placeholder="Examples:\n• PDF: 'What are the main findings of this document?'\n• Image: 'What's happening in this picture?'\n• Audio: 'What was the main topic discussed?'",
@@ -286,6 +318,7 @@ with col2:
         help="Ask natural language questions about your uploaded file. The AI will search through the content to provide relevant answers."
     )
     
+    # Generate Answer button
     col_ask1, col_ask2 = st.columns([3, 1])
     with col_ask1:
         ask_button = st.button("🔍 **Generate AI Answer**", type="primary", use_container_width=True, disabled=not (query and mode))
@@ -297,10 +330,11 @@ with col2:
     
     st.markdown('</div>', unsafe_allow_html=True)
 
-# Results section (spans full width) - Enhanced with Media Display
+# Results section (spans full width)
 if ask_button and query and mode:
     result_container = st.container()
     with result_container:
+        # Progress indicator
         progress_bar = st.progress(0)
         status_text = st.empty()
         
@@ -308,6 +342,7 @@ if ask_button and query and mode:
         progress_bar.progress(30)
         
         try:
+            # Make query request
             progress_bar.progress(70)
             response = requests.post(
                 "http://localhost:8000/query", 
@@ -318,10 +353,11 @@ if ask_button and query and mode:
             
             result = response.json()
             
+            # Clear progress
             status_text.success("✅ **Answer generated successfully!**")
             progress_bar.empty()
             
-            # Answer Display
+            # Enhanced Answer Display
             st.markdown(f'''
             <div class="answer-card">
                 <h3 style="margin-top: 0; display: flex; align-items: center;">
@@ -336,87 +372,22 @@ if ask_button and query and mode:
             </div>
             ''', unsafe_allow_html=True)
             
-            # Media Display Section
-            media = result.get("media", {})
-            
-            if media.get("type") == "pdf":
-                st.markdown('<div class="media-card">', unsafe_allow_html=True)
-                st.markdown("### 📄 Original Document")
-                
-                # Try to display PDF thumbnail or download link
-                pdf_filename = media.get("filename", "")
-                if pdf_filename:
-                    # Since we can't embed full PDF reliably, provide download option
-                    with open(f"data/{pdf_filename}", "rb") as pdf_file:
-                        pdf_bytes = pdf_file.read()
-                    st.download_button(
-                        label="📥 Download Original PDF",
-                        data=pdf_bytes,
-                        file_name=pdf_filename,
-                        mime="application/pdf",
-                        use_container_width=True
-                    )
-                else:
-                    st.info("PDF available for download via the button above.")
-                st.markdown('</div>', unsafe_allow_html=True)
-            
-            elif media.get("type") == "image":
-                st.markdown('<div class="media-card">', unsafe_allow_html=True)
-                st.markdown("### 🖼️ Original Image")
-                
-                # Try to display image directly
-                base64_data = media.get("base64", "")
-                if base64_data:
-                    image_data = base64.b64decode(base64_data)
-                    st.image(image_data, caption=f"Uploaded: {media.get('filename', 'Image')}", use_container_width=True)
-                else:
-                    st.warning("Image data not available for direct display.")
-                st.markdown('</div>', unsafe_allow_html=True)
-            
-            elif media.get("type") == "audio":
-                st.markdown('<div class="media-card">', unsafe_allow_html=True)
-                st.markdown("### 🎵 Original Audio")
-                
-                # Display download link for audio since we don't have base64
-                audio_filename = media.get("filename", "")
-                if audio_filename:
-                    try:
-                        with open(f"data/{audio_filename}", "rb") as audio_file:
-                            audio_bytes = audio_file.read()
-                        
-                        # Determine audio format
-                        audio_format = "audio/wav"
-                        if audio_filename.endswith(".mp3"):
-                            audio_format = "audio/mpeg"
-                        elif audio_filename.endswith(".m4a"):
-                            audio_format = "audio/mp4"
-                        
-                        st.audio(audio_bytes, format=audio_format)
-                        
-                        # Also provide download
-                        st.download_button(
-                            label="📥 Download Audio File",
-                            data=audio_bytes,
-                            file_name=audio_filename,
-                            mime=audio_format,
-                            use_container_width=True
-                        )
-                    except FileNotFoundError:
-                        st.warning("Audio file not found. It may have been deleted or moved.")
-                else:
-                    st.info("Audio file available for download via the button above.")
-                st.markdown('</div>', unsafe_allow_html=True)
-            
             # Context/Retrieved Information
             context = result.get("context", None)
             if context:
                 context_items = context if isinstance(context, list) else [context]
                 st.markdown(f'''
                 <div class="context-card">
-                    <h4 style="margin: 0 0 1rem 0;">📚 **Retrieved Context** ({len([c for c in context_items if c])} sources found)</h4>
+                    <h4 style="margin: 0 0 1rem 0; display: flex; align-items: center;">
+                        📚 **Retrieved Context** 
+                        <span style="font-size: 0.9em; color: #7f8c8d; margin-left: 10px;">
+                            ({len([c for c in context_items if c])} sources found)
+                        </span>
+                    </h4>
                 </div>
                 ''', unsafe_allow_html=True)
                 
+                # Individual context items
                 for idx, ctx in enumerate(context_items):
                     with st.expander(f"📖 Context {idx+1}: {mode} Source", expanded=(idx == 0)):
                         if isinstance(ctx, dict) and 'text' in ctx:
@@ -428,7 +399,7 @@ if ask_button and query and mode:
                             st.markdown(f"**Content:**")
                             st.write(str(ctx))
             
-            # Query history
+            # Query history (simple)
             st.session_state.queries.append({
                 "query": query,
                 "mode": mode,
@@ -462,8 +433,8 @@ if not st.session_state.processed_files:
     
     **What each mode does:**
     - 📄 **PDF Analysis**: Extracts text and enables document Q&A
-    - 🖼️ **Image Understanding**: Analyzes visual content and displays images with answers  
-    - 🎵 **Audio Processing**: Transcribes speech and plays audio alongside answers
+    - 🖼️ **Image Understanding**: Analyzes visual content and describes scenes  
+    - 🎵 **Audio Processing**: Transcribes speech and answers about conversations (WAV, MP3, M4A supported)
     
     **Example Questions:**
     - *PDF*: "What are the key recommendations in this report?"
@@ -492,7 +463,7 @@ if not st.session_state.processed_files:
         st.markdown("""
         <div style="background: linear-gradient(135deg, #e8f5e8, #c8e6c9); padding: 1rem; border-radius: 10px; text-align: center;">
             <h4 style="color: #2e7d32; margin-top: 0;">🎵 Speech Analysis</h4>
-            <p style="color: #1b5e20;">Process interviews, meetings, voice notes</p>
+            <p style="color: #1b5e20;">Process interviews, meetings, voice notes (WAV/MP3/M4A)</p>
         </div>
         """, unsafe_allow_html=True)
     
@@ -517,7 +488,8 @@ if len(st.session_state.processed_files) > 1:
             st.session_state.processed_files.clear()
             st.session_state.uploaded_files.clear()
             st.session_state.queries.clear()
-            st.session_state.current_media.clear()
+            st.session_state.current_mode = None
+            st.session_state.current_filename = None
             st.rerun()
         st.info("**Note:** Clearing files removes them from memory. Upload new files to query different content.")
     
@@ -533,9 +505,8 @@ st.markdown("""
             🚀 Deployed on Hugging Face Spaces
         </p>
         <p style="margin: 0.5rem 0 0 0; font-size: 0.9em; opacity: 0.7;">
-            © 2025 | Advanced AI Content Analysis Assistant | Media Integration with RAG Context
+            © 2025 | Advanced AI Content Analysis Assistant | Optimized for smooth media display
         </p>
     </div>
 </div>
 """, unsafe_allow_html=True)
-
