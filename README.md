@@ -62,7 +62,7 @@ To run this application locally, you will need a Google Gemini API Key.
 
 1.  **Clone the repository**
     ```bash
-    git clone [https://huggingface.co/spaces/YOUR_USERNAME/YOUR_SPACE_NAME](https://huggingface.co/spaces/YOUR_USERNAME/YOUR_SPACE_NAME)
+    git clone [https://huggingface.co/spaces/YOUR_USERNAME/YOUR_SPACE_NAME](https://huggingface.co/spaces/ayushhgface25/Multimodal_RAG)
     cd YOUR_SPACE_NAME
     ```
 
@@ -72,14 +72,7 @@ To run this application locally, you will need a Google Gemini API Key.
     export GOOGLE_API_KEY="your_actual_api_key_here"
     ```
 
-3.  **Run with Docker (Recommended)**
-    This app is designed to run in a Docker container to manage the complex dependencies (PyTorch, Audio libraries).
-    ```bash
-    docker build -t multimodal-rag .
-    docker run -p 7860:7860 -e GOOGLE_API_KEY=$GOOGLE_API_KEY multimodal-rag
-    ```
-
-4.  **Access the App**
+3.  **Access the App**
     Open your browser and navigate to: `http://localhost:7860`
 
 ---
@@ -109,3 +102,4 @@ To run this application locally, you will need a Google Gemini API Key.
     ├── processor.py      # CLIP/Wav2Vec2 embedding logic
     ├── llm_handler.py    # Gemini API integration
     └── config.py         # Configuration settings
+
