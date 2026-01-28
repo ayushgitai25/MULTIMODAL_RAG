@@ -36,7 +36,7 @@ This project implements a **Unified Multimodal Search Space** by orchestrating d
 
 The system utilizes a **Microservices-style architecture** with an Async FastAPI backend and a Streamlit frontend. It bridges the dimension gap between Text/Image (512D) and Audio (768D) using a dual-indexing strategy.
 
-![System Architecture Diagram](https://via.placeholder.com/800x400.png?text=System+Architecture+Diagram:+FastAPI+%2B+Streamlit+%2B+FAISS)
+![System Architecture Diagram](https://github.com/ayushgitai25/MULTIMODAL_RAG/blob/main/architecture.png)
 
 ---
 
@@ -120,6 +120,7 @@ To run this application locally, you will need a Google Gemini API Key.
     ├── processor.py      # CLIP/Wav2Vec2 embedding logic
     ├── llm_handler.py    # Gemini API integration
     └── config.py         # Configuration settings
+
 
 
 
