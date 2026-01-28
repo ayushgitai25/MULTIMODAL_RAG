@@ -27,7 +27,7 @@ This project implements a **Unified Multimodal Search Space** by orchestrating d
 
 | **Document Analysis (PDF)** | **Visual Q&A (Image)** |
 |:---:|:---:|
-| ![PDF Demo](https://via.placeholder.com/400x250.png?text=Add+Your+PDF+Screenshot+Here) | ![Image Demo](https://github.com/ayushgitai25/MULTIMODAL_RAG/blob/main/imgg.png) |
+| ![PDF Demo](https://github.com/ayushgitai25/MULTIMODAL_RAG/blob/main/pdf.pnge) | ![Image Demo](https://github.com/ayushgitai25/MULTIMODAL_RAG/blob/main/imgg.png) |
 | *Extracts text & embedded images for grounded Q&A* | *Understands visual scenes using CLIP embeddings* |
 
 ---
@@ -120,4 +120,5 @@ To run this application locally, you will need a Google Gemini API Key.
     ├── processor.py      # CLIP/Wav2Vec2 embedding logic
     ├── llm_handler.py    # Gemini API integration
     └── config.py         # Configuration settings
+
 
