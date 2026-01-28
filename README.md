@@ -36,34 +36,7 @@ This project implements a **Unified Multimodal Search Space** by orchestrating d
 
 The system utilizes a **Microservices-style architecture** with an Async FastAPI backend and a Streamlit frontend. It bridges the dimension gap between Text/Image (512D) and Audio (768D) using a dual-indexing strategy.
 
-```mermaid
-graph TD
-    User[User / Frontend] -->|Uploads File| API[FastAPI Backend]
-    User -->|Asks Question| API
-
-    subgraph "Ingestion (ETL Pipeline)"
-        API -->|PDF| PyMuPDF[PyMuPDF Parser]
-        API -->|Image| CLIP_P[CLIP Processor]
-        API -->|Audio| W2V[Wav2Vec2 Processor]
-
-        PyMuPDF -->|Text & Images| CLIP_M[CLIP Model (512D)]
-        CLIP_P -->|Visual Features| CLIP_M
-        W2V -->|Acoustic Features| FAISS_A[Audio Index (768D)]
-        W2V -->|Transcription| CLIP_M
-    end
-
-    subgraph "Vector Storage (Partitioned FAISS)"
-        CLIP_M -->|Embeddings| VS_PDF[(PDF Store)]
-        CLIP_M -->|Embeddings| VS_IMG[(Image Store)]
-        CLIP_M -->|Embeddings| VS_AQ[(Audio Query Store)]
-    end
-
-    subgraph "Generation (RAG Loop)"
-        API -->|Query| CLIP_M
-        CLIP_M -->|Vector Search| VS_PDF & VS_IMG & VS_AQ
-        VS_PDF & VS_IMG & VS_AQ -->|Retrieved Context| LLM[Gemini 2.5 Flash]
-        LLM -->|Answer| API
-    end
+![System Architecture Diagram](https://via.placeholder.com/800x400.png?text=System+Architecture+Diagram:+FastAPI+%2B+Streamlit+%2B+FAISS)
 
 ---
 
@@ -107,8 +80,8 @@ To run this application locally, you will need a Google Gemini API Key.
 
 1.  **Clone the repository**
     ```bash
-    git clone [https://huggingface.co/spaces/YOUR_USERNAME/YOUR_SPACE_NAME](https://huggingface.co/spaces/ayushhgface25/Multimodal_RAG)
-    cd YOUR_SPACE_NAME
+    git clone [https://huggingface.co/spaces/ayushhgface25/Multimodal_RAG](https://huggingface.co/spaces/ayushhgface25/Multimodal_RAG)
+    cd Multimodal_RAG
     ```
 
 2.  **Set up Environment Variables**
@@ -147,5 +120,3 @@ To run this application locally, you will need a Google Gemini API Key.
     ├── processor.py      # CLIP/Wav2Vec2 embedding logic
     ├── llm_handler.py    # Gemini API integration
     └── config.py         # Configuration settings
-
-
