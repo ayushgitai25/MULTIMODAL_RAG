@@ -13,12 +13,57 @@ pinned: false
 [![Hugging Face Spaces](https://img.shields.io/badge/%F0%9F%A4%97%20Open%20in%20Hugging%20Face-Spaces-blue)](https://huggingface.co/spaces/ayushhgface25/Multimodal_RAG)
 [![Python](https://img.shields.io/badge/Python-3.10+-yellow.svg)](https://www.python.org/)
 [![Powered by Gemini](https://img.shields.io/badge/AI-Gemini%202.5-orange)](https://deepmind.google/technologies/gemini/)
+[![Docker](https://img.shields.io/badge/Docker-Containerized-blue)](https://www.docker.com/)
 
 **A scalable, context-aware AI agent capable of "seeing" images, "reading" documents, and "listening" to audio files to answer natural language queries.**
 
 This project implements a **Unified Multimodal Search Space** by orchestrating distinct vector embedding models (CLIP & Wav2Vec2) into a partitioned FAISS backend. It allows users to chat with unstructured data with high groundedness and low latency.
 
 🔗 **[Click Here to Try the Live App](https://huggingface.co/spaces/ayushhgface25/Multimodal_RAG)**
+
+---
+
+## 📸 Live Application Preview
+
+| **Document Analysis (PDF)** | **Visual Q&A (Image)** |
+|:---:|:---:|
+| ![PDF Demo](https://via.placeholder.com/400x250.png?text=Add+Your+PDF+Screenshot+Here) | ![Image Demo](https://via.placeholder.com/400x250.png?text=Add+Your+Image+Mode+Screenshot) |
+| *Extracts text & embedded images for grounded Q&A* | *Understands visual scenes using CLIP embeddings* |
+
+---
+
+## 🏗️ System Architecture
+
+The system utilizes a **Microservices-style architecture** with an Async FastAPI backend and a Streamlit frontend. It bridges the dimension gap between Text/Image (512D) and Audio (768D) using a dual-indexing strategy.
+
+```mermaid
+graph TD
+    User[User / Frontend] -->|Uploads File| API[FastAPI Backend]
+    User -->|Asks Question| API
+
+    subgraph "Ingestion (ETL Pipeline)"
+        API -->|PDF| PyMuPDF[PyMuPDF Parser]
+        API -->|Image| CLIP_P[CLIP Processor]
+        API -->|Audio| W2V[Wav2Vec2 Processor]
+
+        PyMuPDF -->|Text & Images| CLIP_M[CLIP Model (512D)]
+        CLIP_P -->|Visual Features| CLIP_M
+        W2V -->|Acoustic Features| FAISS_A[Audio Index (768D)]
+        W2V -->|Transcription| CLIP_M
+    end
+
+    subgraph "Vector Storage (Partitioned FAISS)"
+        CLIP_M -->|Embeddings| VS_PDF[(PDF Store)]
+        CLIP_M -->|Embeddings| VS_IMG[(Image Store)]
+        CLIP_M -->|Embeddings| VS_AQ[(Audio Query Store)]
+    end
+
+    subgraph "Generation (RAG Loop)"
+        API -->|Query| CLIP_M
+        CLIP_M -->|Vector Search| VS_PDF & VS_IMG & VS_AQ
+        VS_PDF & VS_IMG & VS_AQ -->|Retrieved Context| LLM[Gemini 2.5 Flash]
+        LLM -->|Answer| API
+    end
 
 ---
 
@@ -102,4 +147,5 @@ To run this application locally, you will need a Google Gemini API Key.
     ├── processor.py      # CLIP/Wav2Vec2 embedding logic
     ├── llm_handler.py    # Gemini API integration
     └── config.py         # Configuration settings
+
 
